@@ -1,6 +1,5 @@
 ﻿
 // LIG_CapstoneDlg.cpp: 구현 파일
-//
 
 #include "pch.h"
 #include "framework.h"
