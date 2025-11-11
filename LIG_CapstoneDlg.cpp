@@ -39,6 +39,7 @@ END_MESSAGE_MAP()
 
 CLIGCapstoneDlg::CLIGCapstoneDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_LIG_CAPSTONE_DIALOG, pParent)
+	, m_nCurrentTab(0) // 기본값: 페이지1
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -46,6 +47,7 @@ CLIGCapstoneDlg::CLIGCapstoneDlg(CWnd* pParent /*=nullptr*/)
 void CLIGCapstoneDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
+	DDX_Control(pDX, IDC_TAB_PAGE, m_tabControl);
 }
 
 BEGIN_MESSAGE_MAP(CLIGCapstoneDlg, CDialogEx)
@@ -55,6 +57,7 @@ BEGIN_MESSAGE_MAP(CLIGCapstoneDlg, CDialogEx)
 	ON_WM_CTLCOLOR()
 	ON_WM_DESTROY()
 	ON_WM_SIZE()
+	ON_NOTIFY(TCN_SELCHANGE, IDC_TAB_PAGE, &CLIGCapstoneDlg::OnTcnSelchangeTabPage)
 END_MESSAGE_MAP()
 
 BOOL CLIGCapstoneDlg::OnInitDialog()
@@ -89,12 +92,19 @@ BOOL CLIGCapstoneDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);
 
 	m_brushBg.CreateSolidBrush(RGB(64, 64, 64));
+	m_brushTabBg.CreateSolidBrush(RGB(64, 64, 64)); // 탭 내부도 같은 색
 
 	SetWindowPos(NULL, 0, 0, 1500, 750, SWP_NOMOVE | SWP_NOZORDER);
 	CenterWindow();
 
+	// Tab Control 초기화 (UI 초기화보다 먼저)
+	InitializeTabControl();
+
 	InitializeUI();
 	LoadAndDisplayImages();
+
+	// 페이지1을 기본으로 표시
+	ShowTab(0);
 
 	return TRUE;
 }
@@ -133,10 +143,14 @@ void CLIGCapstoneDlg::OnPaint()
 	{
 		CDialogEx::OnPaint();
 
-		if (!m_imageIMU.IsNull())
-			DisplayImage(IDC_PICTURE_IMU, m_imageIMU);
-		if (!m_imageDrift.IsNull())
-			DisplayImage(IDC_PICTURE_DRIFT, m_imageDrift);
+		// 페이지1일 때만 이미지 표시
+		if (m_nCurrentTab == 0)
+		{
+			if (!m_imageIMU.IsNull())
+				DisplayImage(IDC_PICTURE_IMU, m_imageIMU);
+			if (!m_imageDrift.IsNull())
+				DisplayImage(IDC_PICTURE_DRIFT, m_imageDrift);
+		}
 	}
 }
 
@@ -161,6 +175,12 @@ HBRUSH CLIGCapstoneDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 		return (HBRUSH)GetStockObject(NULL_BRUSH);
 	}
 
+	// 탭 컨트롤 내부 배경색 처리
+	if (pWnd->GetDlgCtrlID() == IDC_TAB_PAGE)
+	{
+		return m_brushTabBg;
+	}
+
 	return hbr;
 }
 
@@ -178,15 +198,33 @@ void CLIGCapstoneDlg::OnSize(UINT nType, int cx, int cy)
 {
 	CDialogEx::OnSize(nType, cx, cy);
 
-	if (GetDlgItem(IDC_STATIC_TITLE_LEFT) != NULL)
+	if (m_tabControl.GetSafeHwnd() != NULL)
 	{
 		ArrangeControls(cx, cy);
 
-		if (!m_imageIMU.IsNull())
-			DisplayImage(IDC_PICTURE_IMU, m_imageIMU);
-		if (!m_imageDrift.IsNull())
-			DisplayImage(IDC_PICTURE_DRIFT, m_imageDrift);
+		if (m_nCurrentTab == 0)
+		{
+			if (!m_imageIMU.IsNull())
+				DisplayImage(IDC_PICTURE_IMU, m_imageIMU);
+			if (!m_imageDrift.IsNull())
+				DisplayImage(IDC_PICTURE_DRIFT, m_imageDrift);
+		}
 	}
+}
+
+void CLIGCapstoneDlg::InitializeTabControl()
+{
+	// 탭 아이템 추가
+	TCITEM item;
+	item.mask = TCIF_TEXT;
+
+	// 페이지1 탭
+	item.pszText = _T("페이지1");
+	m_tabControl.InsertItem(0, &item);
+
+	// 페이지2 탭
+	item.pszText = _T("페이지2");
+	m_tabControl.InsertItem(1, &item);
 }
 
 void CLIGCapstoneDlg::InitializeUI()
@@ -209,13 +247,30 @@ void CLIGCapstoneDlg::InitializeUI()
 void CLIGCapstoneDlg::ArrangeControls(int cx, int cy)
 {
 	int margin = 20;
+	int tabTop = 0; // 탭을 최상단에 붙임 (메뉴 바로 아래)
+
+	// Tab Control 크기 및 위치 설정
+	if (m_tabControl.GetSafeHwnd() != NULL)
+	{
+		// 탭을 다이얼로그 전체 크기로 설정 (메뉴 바로 아래부터)
+		m_tabControl.MoveWindow(0, tabTop, cx, cy - tabTop);
+	}
+
+	// Tab Control의 디스플레이 영역 가져오기
+	CRect tabRect;
+	m_tabControl.GetClientRect(&tabRect);
+	m_tabControl.AdjustRect(FALSE, &tabRect); // 탭 헤더를 제외한 내부 영역
+
+	// 내부 컨텐츠 배치
+	int contentMargin = 20;
 	int titleHeight = 40;
 	int titleToImageSpacing = 20;
 
-	int halfWidth = (cx - margin * 3) / 2;
-	int availableImageHeight = cy - margin * 2 - titleHeight - titleToImageSpacing;
+	int halfWidth = (tabRect.Width() - contentMargin * 3) / 2;
+	int availableImageHeight = tabRect.Height() - contentMargin * 2 - titleHeight - titleToImageSpacing;
 
-	int imageTop = margin + titleHeight + titleToImageSpacing;
+	int contentLeft = tabRect.left + contentMargin;
+	int contentTop = tabTop + tabRect.top + contentMargin;
 
 	CWnd* pTitleLeft = GetDlgItem(IDC_STATIC_TITLE_LEFT);
 	CWnd* pTitleRight = GetDlgItem(IDC_STATIC_TITLE_RIGHT);
@@ -224,24 +279,26 @@ void CLIGCapstoneDlg::ArrangeControls(int cx, int cy)
 
 	if (pTitleLeft != NULL)
 	{
-		int titleY = margin + (titleHeight / 4);
-		pTitleLeft->MoveWindow(margin, titleY, halfWidth, titleHeight);
+		int titleY = contentTop + (titleHeight / 4);
+		pTitleLeft->MoveWindow(contentLeft, titleY, halfWidth, titleHeight);
 	}
 
 	if (pTitleRight != NULL)
 	{
-		int titleY = margin + (titleHeight / 4);
-		pTitleRight->MoveWindow(margin * 2 + halfWidth, titleY, halfWidth, titleHeight);
+		int titleY = contentTop + (titleHeight / 4);
+		pTitleRight->MoveWindow(contentLeft + halfWidth + contentMargin, titleY, halfWidth, titleHeight);
 	}
+
+	int imageTop = contentTop + titleHeight + titleToImageSpacing;
 
 	if (pPictureIMU != NULL)
 	{
-		pPictureIMU->MoveWindow(margin, imageTop, halfWidth, availableImageHeight);
+		pPictureIMU->MoveWindow(contentLeft, imageTop, halfWidth, availableImageHeight);
 	}
 
 	if (pPictureDrift != NULL)
 	{
-		pPictureDrift->MoveWindow(margin * 2 + halfWidth, imageTop, halfWidth, availableImageHeight);
+		pPictureDrift->MoveWindow(contentLeft + halfWidth + contentMargin, imageTop, halfWidth, availableImageHeight);
 	}
 }
 
@@ -305,4 +362,42 @@ void CLIGCapstoneDlg::DisplayImage(UINT controlID, CImage& image)
 		SRCCOPY);
 
 	pWnd->ReleaseDC(pDC);
+}
+
+void CLIGCapstoneDlg::ShowTab(int nTab)
+{
+	m_nCurrentTab = nTab;
+
+	CWnd* pTitleLeft = GetDlgItem(IDC_STATIC_TITLE_LEFT);
+	CWnd* pTitleRight = GetDlgItem(IDC_STATIC_TITLE_RIGHT);
+	CWnd* pPictureIMU = GetDlgItem(IDC_PICTURE_IMU);
+	CWnd* pPictureDrift = GetDlgItem(IDC_PICTURE_DRIFT);
+
+	if (nTab == 0) // 페이지1
+	{
+		// 페이지1 컨트롤 표시
+		if (pTitleLeft != NULL) pTitleLeft->ShowWindow(SW_SHOW);
+		if (pTitleRight != NULL) pTitleRight->ShowWindow(SW_SHOW);
+		if (pPictureIMU != NULL) pPictureIMU->ShowWindow(SW_SHOW);
+		if (pPictureDrift != NULL) pPictureDrift->ShowWindow(SW_SHOW);
+	}
+	else if (nTab == 1) // 페이지2
+	{
+		// 페이지1 컨트롤 숨김 (페이지2는 빈 화면)
+		if (pTitleLeft != NULL) pTitleLeft->ShowWindow(SW_HIDE);
+		if (pTitleRight != NULL) pTitleRight->ShowWindow(SW_HIDE);
+		if (pPictureIMU != NULL) pPictureIMU->ShowWindow(SW_HIDE);
+		if (pPictureDrift != NULL) pPictureDrift->ShowWindow(SW_HIDE);
+	}
+
+	Invalidate();
+}
+
+void CLIGCapstoneDlg::OnTcnSelchangeTabPage(NMHDR* pNMHDR, LRESULT* pResult)
+{
+	// 탭 선택 변경 이벤트 처리
+	int nSel = m_tabControl.GetCurSel();
+	ShowTab(nSel);
+
+	*pResult = 0;
 }
