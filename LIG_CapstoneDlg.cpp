@@ -91,19 +91,24 @@ BOOL CLIGCapstoneDlg::OnInitDialog()
 	SetIcon(m_hIcon, TRUE);
 	SetIcon(m_hIcon, FALSE);
 
-	m_brushBg.CreateSolidBrush(RGB(255, 255, 255)); // 흰색 배경
+	m_brushBg.CreateSolidBrush(RGB(255, 255, 255));
 
-	SetWindowPos(NULL, 0, 0, 1500, 750, SWP_NOMOVE | SWP_NOZORDER);
-	CenterWindow();
+	int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+	int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
-	// Tab Control 초기화
+	int windowWidth = (int)(screenWidth * 0.95);
+	int windowHeight = (int)(screenHeight * 0.95);
+
+	int posX = (screenWidth - windowWidth) / 2;
+	int posY = (screenHeight - windowHeight) / 2;
+
+	SetWindowPos(NULL, posX, posY, windowWidth, windowHeight, SWP_NOZORDER);
+
 	InitializeTabControl();
 
-	// Tab Dialog 생성
 	m_tabDlg1.Create(IDD_DLG_TAP1, &m_tabControl);
 	m_tabDlg2.Create(IDD_DLG_TAP2, &m_tabControl);
 
-	// 페이지1을 기본으로 표시
 	ShowTab(0);
 
 	return TRUE;
@@ -173,10 +178,8 @@ void CLIGCapstoneDlg::OnSize(UINT nType, int cx, int cy)
 
 	if (m_tabControl.GetSafeHwnd() != NULL)
 	{
-		// Tab Control 크기 조정
 		m_tabControl.MoveWindow(0, 0, cx, cy);
 
-		// 현재 탭 다이얼로그 크기 조정
 		CRect tabRect;
 		m_tabControl.GetClientRect(&tabRect);
 		m_tabControl.AdjustRect(FALSE, &tabRect);
@@ -190,33 +193,34 @@ void CLIGCapstoneDlg::OnSize(UINT nType, int cx, int cy)
 
 void CLIGCapstoneDlg::InitializeTabControl()
 {
-	// 탭 아이템 추가
+	m_fontTab.CreatePointFont(120, _T("맑은 고딕"));
+	m_tabControl.SetFont(&m_fontTab);
+
+	m_tabControl.SetItemSize(CSize(150, 40)); 
+
+	m_tabControl.SetPadding(CSize(30, 5)); 
+
 	TCITEM item;
 	item.mask = TCIF_TEXT;
 
-	// 페이지1 탭
 	item.pszText = _T("페이지1");
 	m_tabControl.InsertItem(0, &item);
 
-	// 페이지2 탭
 	item.pszText = _T("페이지2");
 	m_tabControl.InsertItem(1, &item);
 }
 
 void CLIGCapstoneDlg::ShowTab(int nTab)
 {
-	// 이전 탭 숨기기
 	if (m_pCurrentTab != nullptr && m_pCurrentTab->GetSafeHwnd() != NULL)
 	{
 		m_pCurrentTab->ShowWindow(SW_HIDE);
 	}
 
-	// Tab Control의 디스플레이 영역 계산
 	CRect tabRect;
 	m_tabControl.GetClientRect(&tabRect);
 	m_tabControl.AdjustRect(FALSE, &tabRect);
 
-	// 새 탭 표시
 	if (nTab == 0)
 	{
 		m_pCurrentTab = &m_tabDlg1;
@@ -233,7 +237,6 @@ void CLIGCapstoneDlg::ShowTab(int nTab)
 
 void CLIGCapstoneDlg::OnTcnSelchangeTabPage(NMHDR* pNMHDR, LRESULT* pResult)
 {
-	// 탭 선택 변경 이벤트 처리
 	int nSel = m_tabControl.GetCurSel();
 	ShowTab(nSel);
 

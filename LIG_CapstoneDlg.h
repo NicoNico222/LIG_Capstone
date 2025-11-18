@@ -17,6 +17,7 @@ protected:
 protected:
 	HICON m_hIcon;
 	CBrush m_brushBg;
+	CFont m_fontTab;  // 탭 폰트 추가
 
 	// Tab Control
 	CTabCtrl m_tabControl;
