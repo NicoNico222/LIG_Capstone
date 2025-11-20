@@ -7,6 +7,7 @@ IMPLEMENT_DYNAMIC(CTabDlg2, CDialog)
 
 CTabDlg2::CTabDlg2(CWnd* pParent /*=nullptr*/)
 	: CDialog(IDD_DLG_TAP2, pParent)
+	, m_nSelectedCI(0)  // 초기값 0 (선택 안됨)
 {
 }
 
@@ -24,6 +25,8 @@ BEGIN_MESSAGE_MAP(CTabDlg2, CDialog)
 	ON_WM_SIZE()
 	ON_WM_PAINT()
 	ON_WM_DESTROY()
+	ON_BN_CLICKED(IDC_RADIO1, &CTabDlg2::OnBnClickedRadio1)  // 추가
+	ON_BN_CLICKED(IDC_RADIO2, &CTabDlg2::OnBnClickedRadio2)  // 추가
 END_MESSAGE_MAP()
 
 BOOL CTabDlg2::OnInitDialog()
@@ -36,8 +39,8 @@ BOOL CTabDlg2::OnInitDialog()
 	m_fontTitle.CreatePointFont(180, _T("맑은 고딕"));
 	m_fontGroupTitle.CreatePointFont(140, _T("맑은 고딕"));
 
-	// 기본 라디오 버튼 선택
-	CheckRadioButton(IDC_RADIO1, IDC_RADIO2, IDC_RADIO2);
+	// 처음에는 아무것도 선택 안함
+	CheckRadioButton(IDC_RADIO1, IDC_RADIO2, 0);  // 0 = 선택 안함
 
 	InitializeUI();
 	LoadAndDisplayImages();
@@ -104,6 +107,35 @@ void CTabDlg2::OnSize(UINT nType, int cx, int cy)
 		DisplayImage(IDC_PICTURE_DRIFT, m_imageBayesian);
 	if (!m_imageRUL.IsNull())
 		DisplayImage(IDC_PICTURE_RUL, m_imageRUL);
+}
+
+// 90% 라디오 버튼 클릭
+void CTabDlg2::OnBnClickedRadio1()
+{
+	m_nSelectedCI = 90;
+}
+
+// 95% 라디오 버튼 클릭
+void CTabDlg2::OnBnClickedRadio2()
+{
+	m_nSelectedCI = 95;
+}
+
+void CTabDlg2::UpdateCISelection()
+{
+	// 현재 선택된 라디오 버튼 확인
+	if (IsDlgButtonChecked(IDC_RADIO1) == BST_CHECKED)
+	{
+		m_nSelectedCI = 90;
+	}
+	else if (IsDlgButtonChecked(IDC_RADIO2) == BST_CHECKED)
+	{
+		m_nSelectedCI = 95;
+	}
+	else
+	{
+		m_nSelectedCI = 0;  // 선택 안됨
+	}
 }
 
 void CTabDlg2::InitializeUI()
