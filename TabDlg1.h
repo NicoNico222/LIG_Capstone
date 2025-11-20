@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "afxdialogex.h"
+#include "GraphHelper.h"
 
 class CTabDlg1 : public CDialog
 {
@@ -25,11 +26,24 @@ protected:
 private:
 	CBrush m_brushBg;
 	CFont m_fontTitle;
-	CImage m_imageIMU;
-	CImage m_imageDrift;
+
+	// 그래프 헬퍼
+	CGraphHelper* m_pGraphHelper;
+	IMUData m_imuData;
+	bool m_bDataLoaded;
+
+	// 비트맵 캐싱 추가
+	CImage m_cachedLeftGraph;
+	CImage m_cachedRightGraph;
+	bool m_bCacheValid;
+	CRect m_lastLeftRect;
+	CRect m_lastRightRect;
 
 	void InitializeUI();
-	void LoadAndDisplayImages();
-	void DisplayImage(UINT controlID, CImage& image);
 	void ArrangeControls(int cx, int cy);
+	void InvalidateCache();  // 캐시 무효화
+
+public:
+	// CSV 로드 함수 (메인 다이얼로그에서 호출)
+	void LoadCSVFile(const CString& filePath);
 };

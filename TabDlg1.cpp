@@ -7,11 +7,25 @@ IMPLEMENT_DYNAMIC(CTabDlg1, CDialog)
 
 CTabDlg1::CTabDlg1(CWnd* pParent /*=nullptr*/)
 	: CDialog(IDD_DLG_TAP1, pParent)
+	, m_pGraphHelper(nullptr)
+	, m_bDataLoaded(false)
+	, m_bCacheValid(false)  // 추가
 {
 }
 
 CTabDlg1::~CTabDlg1()
 {
+	if (m_pGraphHelper != nullptr)
+	{
+		delete m_pGraphHelper;
+		m_pGraphHelper = nullptr;
+	}
+
+	// 캐시 이미지 해제
+	if (!m_cachedLeftGraph.IsNull())
+		m_cachedLeftGraph.Destroy();
+	if (!m_cachedRightGraph.IsNull())
+		m_cachedRightGraph.Destroy();
 }
 
 void CTabDlg1::DoDataExchange(CDataExchange* pDX)
@@ -30,10 +44,12 @@ BOOL CTabDlg1::OnInitDialog()
 {
 	CDialog::OnInitDialog();
 
-	m_brushBg.CreateSolidBrush(RGB(255, 255, 255)); // 흰색 배경
+	m_brushBg.CreateSolidBrush(RGB(255, 255, 255));
+
+	// 그래프 헬퍼 생성
+	m_pGraphHelper = new CGraphHelper();
 
 	InitializeUI();
-	LoadAndDisplayImages();
 
 	return TRUE;
 }
@@ -50,7 +66,7 @@ HBRUSH CTabDlg1::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 	if (nCtlColor == CTLCOLOR_STATIC)
 	{
 		pDC->SetBkMode(TRANSPARENT);
-		pDC->SetTextColor(RGB(0, 0, 0)); // 검은색 텍스트
+		pDC->SetTextColor(RGB(0, 0, 0));
 		return (HBRUSH)GetStockObject(NULL_BRUSH);
 	}
 
@@ -61,20 +77,62 @@ void CTabDlg1::OnPaint()
 {
 	CPaintDC dc(this);
 
-	if (!m_imageIMU.IsNull())
-		DisplayImage(IDC_PICTURE_IMU, m_imageIMU);
-	if (!m_imageDrift.IsNull())
-		DisplayImage(IDC_PICTURE_DRIFT, m_imageDrift);
+	if (m_bDataLoaded && m_pGraphHelper != nullptr)
+	{
+		CWnd* pWndLeft = GetDlgItem(IDC_PICTURE_IMU);
+		CWnd* pWndRight = GetDlgItem(IDC_PICTURE_DRIFT);
+
+		if (pWndLeft != nullptr && pWndRight != nullptr)
+		{
+			CRect rectLeft, rectRight;
+			pWndLeft->GetWindowRect(&rectLeft);
+			ScreenToClient(&rectLeft);
+			pWndRight->GetWindowRect(&rectRight);
+			ScreenToClient(&rectRight);
+
+			// 크기가 변경되었거나 캐시가 없으면 다시 그리기
+			if (!m_bCacheValid ||
+				rectLeft != m_lastLeftRect ||
+				rectRight != m_lastRightRect)
+			{
+				// 캐시 초기화
+				if (!m_cachedLeftGraph.IsNull())
+					m_cachedLeftGraph.Destroy();
+				if (!m_cachedRightGraph.IsNull())
+					m_cachedRightGraph.Destroy();
+
+				// 새 비트맵 생성
+				m_cachedLeftGraph.Create(rectLeft.Width(), rectLeft.Height(), 32);
+				m_cachedRightGraph.Create(rectRight.Width(), rectRight.Height(), 32);
+
+				// 왼쪽 그래프를 비트맵에 그리기
+				CDC* pLeftDC = CDC::FromHandle(m_cachedLeftGraph.GetDC());
+				CRect tempRect(0, 0, rectLeft.Width(), rectLeft.Height());
+				m_pGraphHelper->DrawGraph(pLeftDC, tempRect, m_imuData, true);
+				m_cachedLeftGraph.ReleaseDC();
+
+				// 오른쪽 그래프를 비트맵에 그리기
+				CDC* pRightDC = CDC::FromHandle(m_cachedRightGraph.GetDC());
+				tempRect = CRect(0, 0, rectRight.Width(), rectRight.Height());
+				m_pGraphHelper->DrawGraph(pRightDC, tempRect, m_imuData, false);
+				m_cachedRightGraph.ReleaseDC();
+
+				// 캐시 유효화
+				m_bCacheValid = true;
+				m_lastLeftRect = rectLeft;
+				m_lastRightRect = rectRight;
+			}
+
+			// 캐시된 비트맵 그리기 (매우 빠름)
+			m_cachedLeftGraph.BitBlt(dc.m_hDC, rectLeft.left, rectLeft.top);
+			m_cachedRightGraph.BitBlt(dc.m_hDC, rectRight.left, rectRight.top);
+		}
+	}
 }
 
 void CTabDlg1::OnDestroy()
 {
 	CDialog::OnDestroy();
-
-	if (!m_imageIMU.IsNull())
-		m_imageIMU.Destroy();
-	if (!m_imageDrift.IsNull())
-		m_imageDrift.Destroy();
 }
 
 void CTabDlg1::OnSize(UINT nType, int cx, int cy)
@@ -83,10 +141,9 @@ void CTabDlg1::OnSize(UINT nType, int cx, int cy)
 
 	ArrangeControls(cx, cy);
 
-	if (!m_imageIMU.IsNull())
-		DisplayImage(IDC_PICTURE_IMU, m_imageIMU);
-	if (!m_imageDrift.IsNull())
-		DisplayImage(IDC_PICTURE_DRIFT, m_imageDrift);
+	// 크기 변경시 캐시 무효화
+	InvalidateCache();
+	Invalidate();
 }
 
 void CTabDlg1::InitializeUI()
@@ -148,64 +205,33 @@ void CTabDlg1::ArrangeControls(int cx, int cy)
 	}
 }
 
-void CTabDlg1::LoadAndDisplayImages()
+void CTabDlg1::InvalidateCache()
 {
-	TCHAR szPath[MAX_PATH];
-	GetCurrentDirectory(MAX_PATH, szPath);
-	CString strPath = szPath;
-
-	CString strIMUPath = strPath + _T("\\image\\IMU_senser.png");
-	CString strDriftPath = strPath + _T("\\image\\drift.png");
-
-	m_imageIMU.Load(strIMUPath);
-	m_imageDrift.Load(strDriftPath);
-
-	if (!m_imageIMU.IsNull())
-		DisplayImage(IDC_PICTURE_IMU, m_imageIMU);
-
-	if (!m_imageDrift.IsNull())
-		DisplayImage(IDC_PICTURE_DRIFT, m_imageDrift);
+	m_bCacheValid = false;
 }
 
-void CTabDlg1::DisplayImage(UINT controlID, CImage& image)
+// 메인 다이얼로그에서 호출될 함수
+void CTabDlg1::LoadCSVFile(const CString& filePath)
 {
-	CWnd* pWnd = GetDlgItem(controlID);
-	if (pWnd == NULL || image.IsNull()) return;
-
-	CDC* pDC = pWnd->GetDC();
-	if (pDC == NULL) return;
-
-	CRect rect;
-	pWnd->GetClientRect(&rect);
-
-	int imgWidth = image.GetWidth();
-	int imgHeight = image.GetHeight();
-
-	float aspectRatio = (float)imgWidth / (float)imgHeight;
-	float controlRatio = (float)rect.Width() / (float)rect.Height();
-
-	int drawWidth, drawHeight;
-	int offsetX = 0, offsetY = 0;
-
-	if (aspectRatio > controlRatio)
+	if (m_pGraphHelper != nullptr)
 	{
-		drawWidth = rect.Width();
-		drawHeight = (int)(rect.Width() / aspectRatio);
-		offsetY = (rect.Height() - drawHeight) / 2;
+		if (m_pGraphHelper->LoadCSV(filePath, m_imuData))
+		{
+			m_bDataLoaded = true;
+
+			// 캐시 무효화
+			InvalidateCache();
+
+			CString msg;
+			msg.Format(_T("데이터 로드 완료!\n총 %d개의 데이터 포인트"), m_imuData.dataSize);
+			AfxMessageBox(msg, MB_ICONINFORMATION);
+
+			// 다시 그리기
+			Invalidate();
+		}
+		else
+		{
+			AfxMessageBox(_T("CSV 파일 로드 실패!"), MB_ICONERROR);
+		}
 	}
-	else
-	{
-		drawHeight = rect.Height();
-		drawWidth = (int)(rect.Height() * aspectRatio);
-		offsetX = (rect.Width() - drawWidth) / 2;
-	}
-
-	pDC->FillSolidRect(&rect, RGB(255, 255, 255)); // 흰색 배경
-
-	image.StretchBlt(pDC->m_hDC,
-		offsetX, offsetY, drawWidth, drawHeight,
-		0, 0, imgWidth, imgHeight,
-		SRCCOPY);
-
-	pWnd->ReleaseDC(pDC);
 }

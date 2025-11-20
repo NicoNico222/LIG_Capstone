@@ -58,6 +58,7 @@ BEGIN_MESSAGE_MAP(CLIGCapstoneDlg, CDialogEx)
 	ON_WM_DESTROY()
 	ON_WM_SIZE()
 	ON_NOTIFY(TCN_SELCHANGE, IDC_TAB_PAGE, &CLIGCapstoneDlg::OnTcnSelchangeTabPage)
+	ON_COMMAND(ID_FILE_LOAD_CSV, &CLIGCapstoneDlg::OnFileLoadCsv)
 END_MESSAGE_MAP()
 
 BOOL CLIGCapstoneDlg::OnInitDialog()
@@ -241,4 +242,29 @@ void CLIGCapstoneDlg::OnTcnSelchangeTabPage(NMHDR* pNMHDR, LRESULT* pResult)
 	ShowTab(nSel);
 
 	*pResult = 0;
+}
+
+
+void CLIGCapstoneDlg::OnFileLoadCsv()
+{
+	// 파일 다이얼로그
+	CFileDialog dlg(TRUE, _T("csv"), NULL,
+		OFN_HIDEREADONLY | OFN_FILEMUSTEXIST,
+		_T("CSV Files (*.csv)|*.csv|All Files (*.*)|*.*||"));
+
+	if (dlg.DoModal() == IDOK)
+	{
+		CString filePath = dlg.GetPathName();
+
+		// 현재 활성화된 탭이 Tab1인 경우에만 로드
+		int nSel = m_tabControl.GetCurSel();
+		if (nSel == 0)  // Tab1
+		{
+			m_tabDlg1.LoadCSVFile(filePath);
+		}
+		else
+		{
+			AfxMessageBox(_T("CSV 파일은 페이지1에서만 로드 가능합니다."), MB_ICONINFORMATION);
+		}
+	}
 }

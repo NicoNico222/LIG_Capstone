@@ -184,6 +184,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="framework.h" />
+    <ClInclude Include="GraphHelper.h" />
     <ClInclude Include="LIG_Capstone.h" />
     <ClInclude Include="LIG_CapstoneDlg.h" />
     <ClInclude Include="pch.h" />
@@ -193,6 +194,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="GraphHelper.cpp" />
     <ClCompile Include="LIG_Capstone.cpp" />
     <ClCompile Include="LIG_CapstoneDlg.cpp" />
     <ClCompile Include="pch.cpp">
