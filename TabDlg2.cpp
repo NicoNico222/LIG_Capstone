@@ -25,8 +25,8 @@ BEGIN_MESSAGE_MAP(CTabDlg2, CDialog)
 	ON_WM_SIZE()
 	ON_WM_PAINT()
 	ON_WM_DESTROY()
-	ON_BN_CLICKED(IDC_RADIO1, &CTabDlg2::OnBnClickedRadio1)  // 추가
-	ON_BN_CLICKED(IDC_RADIO2, &CTabDlg2::OnBnClickedRadio2)  // 추가
+	ON_BN_CLICKED(IDC_RADIO1, &CTabDlg2::OnBnClickedRadio1) 
+	ON_BN_CLICKED(IDC_RADIO2, &CTabDlg2::OnBnClickedRadio2) 
 END_MESSAGE_MAP()
 
 BOOL CTabDlg2::OnInitDialog()
@@ -35,12 +35,10 @@ BOOL CTabDlg2::OnInitDialog()
 
 	m_brushBg.CreateSolidBrush(RGB(255, 255, 255));
 
-	// 폰트 생성
 	m_fontTitle.CreatePointFont(180, _T("맑은 고딕"));
 	m_fontGroupTitle.CreatePointFont(140, _T("맑은 고딕"));
 
-	// 처음에는 아무것도 선택 안함
-	CheckRadioButton(IDC_RADIO1, IDC_RADIO2, 0);  // 0 = 선택 안함
+	CheckRadioButton(IDC_RADIO1, IDC_RADIO2, 0);
 
 	InitializeUI();
 	LoadAndDisplayImages();
