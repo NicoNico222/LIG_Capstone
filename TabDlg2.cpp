@@ -40,6 +40,7 @@ BOOL CTabDlg2::OnInitDialog()
 	// 폰트 생성
 	m_fontTitle.CreatePointFont(180, _T("맑은 고딕"));
 	m_fontGroupTitle.CreatePointFont(140, _T("맑은 고딕"));
+	m_fontRadio.CreatePointFont(110, _T("맑은 고딕"));
 
 	InitializeUI();
 	LoadAndDisplayImages();
@@ -47,6 +48,20 @@ BOOL CTabDlg2::OnInitDialog()
 	CRect clientRect;
 	GetClientRect(&clientRect);
 	ArrangeControls(clientRect.Width(), clientRect.Height());
+
+	// 라디오 버튼 강제 리프레시
+	CWnd* pRadio1 = GetDlgItem(IDC_RADIO1);
+	CWnd* pRadio2 = GetDlgItem(IDC_RADIO2);
+	if (pRadio1 != NULL)
+	{
+		pRadio1->Invalidate();
+		pRadio1->UpdateWindow();
+	}
+	if (pRadio2 != NULL)
+	{
+		pRadio2->Invalidate();
+		pRadio2->UpdateWindow();
+	}
 
 	return TRUE;
 }
@@ -69,7 +84,8 @@ HBRUSH CTabDlg2::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 
 	if (nCtlColor == CTLCOLOR_BTN)
 	{
-		pDC->SetBkMode(TRANSPARENT);
+		pDC->SetBkColor(RGB(255, 255, 255));
+		pDC->SetTextColor(RGB(0, 0, 0));
 		return m_brushBg;
 	}
 
@@ -143,15 +159,23 @@ void CTabDlg2::InitializeUI()
 	CWnd* pRulMargin = GetDlgItem(IDC_STATIC_RUL_MARGIN);
 	CWnd* pDriftText = GetDlgItem(IDC_STATIC_DRIFT_TEXT);
 	CWnd* pRulText = GetDlgItem(IDC_STATIC_RUL_TEXT);
+	CWnd* pRadio1 = GetDlgItem(IDC_RADIO1);
+	CWnd* pRadio2 = GetDlgItem(IDC_RADIO2);
 
 	if (pRulPredict != NULL)
 		pRulPredict->SetFont(&m_fontGroupTitle);
 	if (pRulMargin != NULL)
 		pRulMargin->SetFont(&m_fontGroupTitle);
 	if (pDriftText != NULL)
-		pDriftText->SetFont(&m_fontTitle);
+		pDriftText->SetFont(&m_fontGroupTitle);
 	if (pRulText != NULL)
-		pRulText->SetFont(&m_fontTitle);
+		pRulText->SetFont(&m_fontGroupTitle);
+
+	// 라디오 버튼 폰트 설정
+	if (pRadio1 != NULL)
+		pRadio1->SetFont(&m_fontRadio);
+	if (pRadio2 != NULL)
+		pRadio2->SetFont(&m_fontRadio);
 }
 
 void CTabDlg2::ArrangeControls(int cx, int cy)
@@ -164,6 +188,7 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 	CWnd* pRadio2 = GetDlgItem(IDC_RADIO2);
 	CWnd* pRulMargin = GetDlgItem(IDC_STATIC_RUL_MARGIN);
 	CWnd* pMonth = GetDlgItem(IDC_STATIC_MONTH);
+	CWnd* pBtnRun = GetDlgItem(IDC_BTN_RUN);
 	CWnd* pDriftText = GetDlgItem(IDC_STATIC_DRIFT_TEXT);
 	CWnd* pRulText = GetDlgItem(IDC_STATIC_RUL_TEXT);
 	CWnd* pPictureDrift = GetDlgItem(IDC_PICTURE_DRIFT);
@@ -172,7 +197,7 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 	int margin = 20;
 	int topMargin = 20;
 	int titleHeight = 30;
-	int groupHeight = 100;
+	int groupHeight = 70;
 	int spacing = 15;
 
 	// 왼쪽 영역과 오른쪽 영역
@@ -182,46 +207,63 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 	int leftX = margin;
 	int currentY = topMargin;
 
-	// RUL 예측 타이틀
+	// RUL 예측 박스 관련 크기
+	int boxWidth = 200;
+	int btnWidth = 100;
+	int boxCenterX = leftX + (halfWidth - boxWidth) / 2;  // 중앙 정렬
+
+	// RUL 예측 타이틀 - 중앙 정렬
 	if (pRulPredict != NULL)
 	{
-		pRulPredict->MoveWindow(leftX, currentY, 150, titleHeight);
+		pRulPredict->MoveWindow(boxCenterX, currentY, boxWidth, titleHeight);
 		currentY += titleHeight + 10;
 	}
 
-	// RUL 예측 박스 (라디오 버튼 포함)
+	// RUL 예측 박스 (라디오 버튼 포함) - 중앙 정렬
 	if (pRulBox != NULL)
 	{
-		pRulBox->MoveWindow(leftX, currentY, 200, groupHeight);
+		pRulBox->MoveWindow(boxCenterX, currentY, boxWidth, groupHeight);
 
-		// 라디오 버튼 배치
+		// 라디오 버튼 배치 - 위치 조정
 		if (pRadio1 != NULL && pRadio2 != NULL)
 		{
-			int radioY = currentY + 25;
-			pRadio1->MoveWindow(leftX + 20, radioY, 150, 25);
-			pRadio2->MoveWindow(leftX + 20, radioY + 35, 150, 25);
+			int radioY = currentY + 15;  // 20 -> 15로 조정
+			int radioSpacing = 25;  // 28 -> 25로 조정
+			pRadio1->MoveWindow(boxCenterX + 15, radioY, 160, 22);  // 높이 20 -> 22
+			pRadio2->MoveWindow(boxCenterX + 15, radioY + radioSpacing, 160, 22);
 		}
+	}
+
+	// 실행 버튼 - RUL Box 오른쪽에 배치
+	if (pBtnRun != NULL)
+	{
+		int btnX = boxCenterX + boxWidth + margin;
+		pBtnRun->MoveWindow(btnX, currentY, btnWidth, groupHeight);
 	}
 
 	// === 오른쪽 상단: RUL 오차범위 영역 ===
 	int rightX = leftX + halfWidth + margin;
 	currentY = topMargin;
 
-	// RUL 오차범위 타이틀
+	// RUL 오차범위 관련 크기
+	int marginBoxWidth = 150;
+	int marginCenterX = rightX + (halfWidth - marginBoxWidth) / 2;
+
+	// RUL 오차범위 타이틀 - 중앙 정렬
 	if (pRulMargin != NULL)
 	{
-		pRulMargin->MoveWindow(rightX, currentY, 150, titleHeight);
+		pRulMargin->MoveWindow(marginCenterX, currentY, marginBoxWidth, titleHeight);
 		currentY += titleHeight + 10;
 	}
 
-	// +- month 텍스트
+	// +- month 텍스트 - 중앙 정렬
 	if (pMonth != NULL)
 	{
-		pMonth->MoveWindow(rightX, currentY, 150, 30);
+		pMonth->MoveWindow(marginCenterX, currentY, marginBoxWidth, groupHeight);
 	}
 
 	// === 하단 영역 ===
-	int bottomY = topMargin + groupHeight + spacing + 40;
+	int bottomY = topMargin + titleHeight + 10 + groupHeight + spacing + 20;
 	int imageHeight = cy - bottomY - margin * 2 - titleHeight - spacing;
 
 	// 왼쪽 하단: P3 Drift 예측 결과
@@ -229,9 +271,9 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 	if (pDriftText != NULL)
 	{
 		pDriftText->MoveWindow(leftX, currentY, halfWidth, titleHeight);
-		currentY += titleHeight + spacing;
 	}
 
+	currentY += titleHeight + spacing;
 	if (pPictureDrift != NULL)
 	{
 		pPictureDrift->MoveWindow(leftX, currentY, halfWidth, imageHeight);
@@ -242,9 +284,9 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 	if (pRulText != NULL)
 	{
 		pRulText->MoveWindow(rightX, currentY, halfWidth, titleHeight);
-		currentY += titleHeight + spacing;
 	}
 
+	currentY += titleHeight + spacing;
 	if (pPictureRul != NULL)
 	{
 		pPictureRul->MoveWindow(rightX, currentY, halfWidth, imageHeight);
@@ -340,4 +382,14 @@ void CTabDlg2::OnBnClickedRun()
 	}
 
 	pParent->RunInference(pParent->m_loadedCsvPath, ci);
+}
+
+void CTabDlg2::ResetRadioButtons()
+{
+	// 모든 라디오 버튼 선택 해제
+	CheckDlgButton(IDC_RADIO1, BST_UNCHECKED);
+	CheckDlgButton(IDC_RADIO2, BST_UNCHECKED);
+
+	// 내부 변수도 초기화
+	m_nSelectedCI = 0;
 }

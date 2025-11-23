@@ -338,9 +338,11 @@ void CLIGCapstoneDlg::OnFileLoadCsv()
 		{
 			m_tabDlg1.LoadCSVFile(filePath);
 
-			// 🔥 FASTAPI 전송 X
-			// 대신 멤버변수에 저장
+			// CSV 경로 저장
 			m_loadedCsvPath = filePath;
+
+			// ✅ Tab2의 라디오 버튼 선택 초기화
+			m_tabDlg2.ResetRadioButtons();
 
 			AfxMessageBox(_T("CSV 파일이 로드되었습니다.\nTab2에서 CI를 선택하고 '실행'을 눌러주세요."));
 		}

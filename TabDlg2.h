@@ -31,6 +31,7 @@ private:
 	CBrush m_brushBg;
 	CFont m_fontTitle;
 	CFont m_fontGroupTitle;
+	CFont m_fontRadio;
 
 	CImage m_imageBayesian;
 	CImage m_imageRUL;
@@ -43,5 +44,6 @@ private:
 	void DisplayImage(UINT controlID, CImage& image);
 	void UpdateCISelection();  // 추가: CI 선택 업데이트
 public:
+	void ResetRadioButtons();
 	afx_msg void OnBnClickedButton1();
 };
