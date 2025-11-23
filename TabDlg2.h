@@ -32,6 +32,7 @@ private:
 	CFont m_fontTitle;
 	CFont m_fontGroupTitle;
 	CFont m_fontRadio;
+	CFont m_fontMonth;
 
 	CImage m_imageBayesian;
 	CImage m_imageRUL;
@@ -45,5 +46,6 @@ private:
 	void UpdateCISelection();  // 추가: CI 선택 업데이트
 public:
 	void ResetRadioButtons();
+	void UpdateRULDisplay(const CString& text);
 	afx_msg void OnBnClickedButton1();
 };

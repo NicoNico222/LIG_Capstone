@@ -4,6 +4,7 @@
 #include "LIG_CapstoneDlg.h"
 #include "afxdialogex.h"
 #include <winhttp.h>
+#include <fstream>
 #pragma comment(lib, "winhttp.lib")
 
 #ifdef _DEBUG
@@ -246,13 +247,10 @@ void CLIGCapstoneDlg::OnTcnSelchangeTabPage(NMHDR* pNMHDR, LRESULT* pResult)
 	*pResult = 0;
 }
 
-
 void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 {
 	CW2A utf8(csvPath, CP_UTF8);
 	std::string path = std::string(utf8);
-
-	// JSON 이스케이프 처리
 	std::string escaped;
 	for (char c : path)
 	{
@@ -261,23 +259,19 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 		else
 			escaped += c;
 	}
-
-	// JSON 생성
 	std::string jsonBody = "{ \"csv_path\": \"" + escaped + "\", \"ci\": " + std::to_string(ci) + " }";
-
 	LPCWSTR server = L"127.0.0.1";
 	INTERNET_PORT port = 8000;
-
 	HINTERNET hSession = WinHttpOpen(L"MFC Client",
 		WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
 		WINHTTP_NO_PROXY_NAME,
 		WINHTTP_NO_PROXY_BYPASS, 0);
-
 	if (!hSession) return;
-
 	HINTERNET hConnect = WinHttpConnect(hSession, server, port, 0);
-	if (!hConnect) return;
-
+	if (!hConnect) {
+		WinHttpCloseHandle(hSession);
+		return;
+	}
 	HINTERNET hRequest = WinHttpOpenRequest(
 		hConnect,
 		L"POST",
@@ -286,11 +280,12 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 		WINHTTP_NO_REFERER,
 		WINHTTP_DEFAULT_ACCEPT_TYPES,
 		WINHTTP_FLAG_REFRESH);
-
-	if (!hRequest) return;
-
+	if (!hRequest) {
+		WinHttpCloseHandle(hConnect);
+		WinHttpCloseHandle(hSession);
+		return;
+	}
 	LPCWSTR header = L"Content-Type: application/json; charset=utf-8\r\n";
-
 	BOOL bResult = WinHttpSendRequest(
 		hRequest,
 		header,
@@ -299,23 +294,77 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 		(DWORD)jsonBody.length(),
 		(DWORD)jsonBody.length(),
 		0);
-
-	if (!bResult) return;
-
-	WinHttpReceiveResponse(hRequest, NULL);
-
-	DWORD size = 0;
-	WinHttpQueryDataAvailable(hRequest, &size);
-
-	if (size > 0)
-	{
-		std::string response(size, 0);
-		DWORD downloaded = 0;
-		WinHttpReadData(hRequest, &response[0], size, &downloaded);
-
-		AfxMessageBox(CString(response.c_str()));
+	if (!bResult) {
+		WinHttpCloseHandle(hRequest);
+		WinHttpCloseHandle(hConnect);
+		WinHttpCloseHandle(hSession);
+		return;
 	}
-
+	WinHttpReceiveResponse(hRequest, NULL);
+	DWORD totalSize = 0;
+	std::string fullResponse;
+	while (true)
+	{
+		DWORD size = 0;
+		WinHttpQueryDataAvailable(hRequest, &size);
+		if (size == 0) break;
+		std::string buffer(size, 0);
+		DWORD downloaded = 0;
+		WinHttpReadData(hRequest, &buffer[0], size, &downloaded);
+		fullResponse += buffer;
+		totalSize += downloaded;
+	}
+	if (totalSize > 0)
+	{
+		double min_rul = 0.0;
+		double range = 0.0;
+		bool parsed = false;
+		size_t min_rul_pos = fullResponse.find("\"min_rul_mean\"");
+		size_t range_pos = fullResponse.find("\"range\"");
+		if (min_rul_pos != std::string::npos && range_pos != std::string::npos)
+		{
+			size_t min_rul_colon = fullResponse.find(":", min_rul_pos);
+			size_t range_colon = fullResponse.find(":", range_pos);
+			if (min_rul_colon != std::string::npos && range_colon != std::string::npos)
+			{
+				size_t min_rul_start = min_rul_colon + 1;
+				size_t min_rul_end = fullResponse.find_first_of(",}", min_rul_start);
+				size_t range_start = range_colon + 1;
+				size_t range_end = fullResponse.find_first_of(",}", range_start);
+				if (min_rul_end != std::string::npos && range_end != std::string::npos)
+				{
+					std::string min_rul_str = fullResponse.substr(min_rul_start, min_rul_end - min_rul_start);
+					std::string range_str = fullResponse.substr(range_start, range_end - range_start);
+					min_rul_str.erase(0, min_rul_str.find_first_not_of(" \t\n\r"));
+					min_rul_str.erase(min_rul_str.find_last_not_of(" \t\n\r") + 1);
+					range_str.erase(0, range_str.find_first_not_of(" \t\n\r"));
+					range_str.erase(range_str.find_last_not_of(" \t\n\r") + 1);
+					try {
+						min_rul = std::stod(min_rul_str);
+						range = std::stod(range_str);
+						parsed = true;
+					}
+					catch (...) {
+					}
+				}
+			}
+		}
+		if (parsed)
+		{
+			CString resultText;
+			resultText.Format(_T("%.1f ± %.1f Month"), min_rul, range);
+			m_tabDlg2.UpdateRULDisplay(resultText);
+			AfxMessageBox(_T("성공했습니다"), MB_ICONINFORMATION);
+		}
+		else
+		{
+			AfxMessageBox(_T("실패했습니다"), MB_ICONERROR);
+		}
+	}
+	else
+	{
+		AfxMessageBox(_T("실패했습니다"), MB_ICONERROR);
+	}
 	WinHttpCloseHandle(hRequest);
 	WinHttpCloseHandle(hConnect);
 	WinHttpCloseHandle(hSession);
