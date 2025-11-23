@@ -5,6 +5,7 @@
 #include "afxdialogex.h"
 #include <winhttp.h>
 #include <fstream>
+#include <sstream>
 #pragma comment(lib, "winhttp.lib")
 
 #ifdef _DEBUG
@@ -200,9 +201,9 @@ void CLIGCapstoneDlg::InitializeTabControl()
 	m_fontTab.CreatePointFont(120, _T("맑은 고딕"));
 	m_tabControl.SetFont(&m_fontTab);
 
-	m_tabControl.SetItemSize(CSize(150, 40)); 
+	m_tabControl.SetItemSize(CSize(150, 40));
 
-	m_tabControl.SetPadding(CSize(30, 5)); 
+	m_tabControl.SetPadding(CSize(30, 5));
 
 	TCITEM item;
 	item.mask = TCIF_TEXT;
@@ -314,45 +315,218 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 		fullResponse += buffer;
 		totalSize += downloaded;
 	}
+
+	WinHttpCloseHandle(hRequest);
+	WinHttpCloseHandle(hConnect);
+	WinHttpCloseHandle(hSession);
+
 	if (totalSize > 0)
 	{
-		double min_rul = 0.0;
-		double range = 0.0;
-		bool parsed = false;
-		size_t min_rul_pos = fullResponse.find("\"min_rul_mean\"");
-		size_t range_pos = fullResponse.find("\"range\"");
-		if (min_rul_pos != std::string::npos && range_pos != std::string::npos)
+		TCHAR szPath[MAX_PATH];
+		GetCurrentDirectory(MAX_PATH, szPath);
+		CString debugFilePath = CString(szPath) + _T("\\received_data.txt");
+
+		std::ofstream outFile(debugFilePath);
+		outFile << fullResponse;
+		outFile.close();
+
+		bool success = false;
+
+		size_t data_pos = fullResponse.find("\"data\"");
+		if (data_pos == std::string::npos)
 		{
-			size_t min_rul_colon = fullResponse.find(":", min_rul_pos);
-			size_t range_colon = fullResponse.find(":", range_pos);
-			if (min_rul_colon != std::string::npos && range_colon != std::string::npos)
+			AfxMessageBox(_T("실패했습니다"), MB_ICONERROR);
+			return;
+		}
+
+		double min_rul = 0.0;
+		double range_val = 0.0;
+		size_t rul_result_pos = fullResponse.find("\"rul_result\"", data_pos);
+		if (rul_result_pos != std::string::npos)
+		{
+			size_t min_rul_pos = fullResponse.find("\"min_rul_mean\"", rul_result_pos);
+			size_t range_pos = fullResponse.find("\"range\"", rul_result_pos);
+
+			if (min_rul_pos != std::string::npos)
 			{
-				size_t min_rul_start = min_rul_colon + 1;
-				size_t min_rul_end = fullResponse.find_first_of(",}", min_rul_start);
-				size_t range_start = range_colon + 1;
-				size_t range_end = fullResponse.find_first_of(",}", range_start);
-				if (min_rul_end != std::string::npos && range_end != std::string::npos)
-				{
-					std::string min_rul_str = fullResponse.substr(min_rul_start, min_rul_end - min_rul_start);
-					std::string range_str = fullResponse.substr(range_start, range_end - range_start);
-					min_rul_str.erase(0, min_rul_str.find_first_not_of(" \t\n\r"));
-					min_rul_str.erase(min_rul_str.find_last_not_of(" \t\n\r") + 1);
-					range_str.erase(0, range_str.find_first_not_of(" \t\n\r"));
-					range_str.erase(range_str.find_last_not_of(" \t\n\r") + 1);
-					try {
-						min_rul = std::stod(min_rul_str);
-						range = std::stod(range_str);
-						parsed = true;
-					}
-					catch (...) {
-					}
-				}
+				size_t colon = fullResponse.find(":", min_rul_pos);
+				size_t start = colon + 1;
+				size_t end = fullResponse.find_first_of(",}", start);
+				std::string val = fullResponse.substr(start, end - start);
+				val.erase(0, val.find_first_not_of(" \t\n\r"));
+				val.erase(val.find_last_not_of(" \t\n\r") + 1);
+				try { min_rul = std::stod(val); }
+				catch (...) {}
+			}
+
+			if (range_pos != std::string::npos)
+			{
+				size_t colon = fullResponse.find(":", range_pos);
+				size_t start = colon + 1;
+				size_t end = fullResponse.find_first_of(",}", start);
+				std::string val = fullResponse.substr(start, end - start);
+				val.erase(0, val.find_first_not_of(" \t\n\r"));
+				val.erase(val.find_last_not_of(" \t\n\r") + 1);
+				try { range_val = std::stod(val); }
+				catch (...) {}
 			}
 		}
-		if (parsed)
+
+		size_t vis_rul_pos = fullResponse.find("\"vis_rul_graph\"", data_pos);
+		if (vis_rul_pos != std::string::npos)
+		{
+			RULGraphData rulData;
+			rulData.ci = ci;
+
+			auto parseDoubleArray = [](const std::string& json, const std::string& key, size_t start) -> std::vector<double> {
+				std::vector<double> result;
+				size_t keyPos = json.find("\"" + key + "\"", start);
+				if (keyPos == std::string::npos) return result;
+				size_t bracketStart = json.find("[", keyPos);
+				if (bracketStart == std::string::npos) return result;
+				size_t bracketEnd = json.find("]", bracketStart);
+				if (bracketEnd == std::string::npos) return result;
+				std::string content = json.substr(bracketStart + 1, bracketEnd - bracketStart - 1);
+				std::stringstream ss(content);
+				std::string token;
+				while (std::getline(ss, token, ','))
+				{
+					token.erase(0, token.find_first_not_of(" \t\n\r"));
+					token.erase(token.find_last_not_of(" \t\n\r") + 1);
+					if (!token.empty())
+					{
+						try { result.push_back(std::stod(token)); }
+						catch (...) {}
+					}
+				}
+				return result;
+				};
+
+			auto parseThresholdDict = [](const std::string& json, size_t start) -> std::vector<double> {
+				std::vector<double> result(6, 0.0);
+
+				size_t thresholdPos = json.find("\"threshold\"", start);
+				if (thresholdPos == std::string::npos) return result;
+
+				size_t braceStart = json.find("{", thresholdPos);
+				if (braceStart == std::string::npos) return result;
+
+				size_t braceEnd = json.find("}", braceStart);
+				if (braceEnd == std::string::npos) return result;
+
+				std::string content = json.substr(braceStart, braceEnd - braceStart + 1);
+
+				std::vector<std::string> keys = {
+					"Roll Drift", "Pitch Drift", "Yaw Drift",
+					"V_North Drift", "V_East Drift", "V_Down Drift"
+				};
+
+				for (int i = 0; i < 6; i++)
+				{
+					size_t keyPos = content.find("\"" + keys[i] + "\"");
+					if (keyPos != std::string::npos)
+					{
+						size_t colonPos = content.find(":", keyPos);
+						if (colonPos != std::string::npos)
+						{
+							size_t valStart = colonPos + 1;
+							size_t valEnd = content.find_first_of(",}", valStart);
+							if (valEnd != std::string::npos)
+							{
+								std::string valStr = content.substr(valStart, valEnd - valStart);
+								valStr.erase(0, valStr.find_first_not_of(" \t\n\r"));
+								valStr.erase(valStr.find_last_not_of(" \t\n\r") + 1);
+								try {
+									result[i] = std::stod(valStr);
+								}
+								catch (...) {}
+							}
+						}
+					}
+				}
+
+				return result;
+				};
+
+			auto parseDouble = [](const std::string& json, const std::string& key, size_t start) -> double {
+				size_t keyPos = json.find("\"" + key + "\"", start);
+				if (keyPos == std::string::npos) return 0.0;
+				size_t colon = json.find(":", keyPos);
+				size_t valStart = colon + 1;
+				size_t valEnd = json.find_first_of(",}", valStart);
+				std::string val = json.substr(valStart, valEnd - valStart);
+				val.erase(0, val.find_first_not_of(" \t\n\r"));
+				val.erase(val.find_last_not_of(" \t\n\r") + 1);
+				try { return std::stod(val); }
+				catch (...) { return 0.0; }
+				};
+
+			auto parse2DArray = [](const std::string& json, const std::string& key, size_t start) -> std::vector<std::vector<double>> {
+				std::vector<std::vector<double>> result;
+				size_t keyPos = json.find("\"" + key + "\"", start);
+				if (keyPos == std::string::npos) return result;
+				size_t outerStart = json.find("[", keyPos);
+				if (outerStart == std::string::npos) return result;
+
+				size_t pos = outerStart + 1;
+				while (pos < json.length())
+				{
+					size_t innerStart = json.find("[", pos);
+					if (innerStart == std::string::npos) break;
+					size_t innerEnd = json.find("]", innerStart);
+					if (innerEnd == std::string::npos) break;
+
+					std::string content = json.substr(innerStart + 1, innerEnd - innerStart - 1);
+					std::vector<double> inner;
+					std::stringstream ss(content);
+					std::string token;
+					while (std::getline(ss, token, ','))
+					{
+						token.erase(0, token.find_first_not_of(" \t\n\r"));
+						token.erase(token.find_last_not_of(" \t\n\r") + 1);
+						if (!token.empty())
+						{
+							try { inner.push_back(std::stod(token)); }
+							catch (...) {}
+						}
+					}
+					result.push_back(inner);
+					pos = innerEnd + 1;
+
+					if (json.find("[", pos) == std::string::npos || json.find("]", pos) < json.find("[", pos))
+						break;
+				}
+				return result;
+				};
+
+			rulData.threshold = parseThresholdDict(fullResponse, vis_rul_pos);
+			rulData.slope_mean = parseDoubleArray(fullResponse, "slope_mean", vis_rul_pos);
+			rulData.input_y = parseDoubleArray(fullResponse, "input_y", vis_rul_pos);
+			rulData.target_y = parseDoubleArray(fullResponse, "target_y", vis_rul_pos);
+			rulData.gap_mean_y_mean = parseDoubleArray(fullResponse, "gap_mean_y_mean", vis_rul_pos);
+			rulData.rul_mean_list = parseDoubleArray(fullResponse, "rul_mean_list", vis_rul_pos);
+
+			rulData.input_x = parseDouble(fullResponse, "input_x", vis_rul_pos);
+			rulData.target_x = parseDouble(fullResponse, "target_x", vis_rul_pos);
+			rulData.gap_mean = parseDouble(fullResponse, "gap_mean", vis_rul_pos);
+			rulData.p2_x_mean = parseDouble(fullResponse, "p2_x_mean", vis_rul_pos);
+
+			rulData.y_line_mean_list = parse2DArray(fullResponse, "y_line_mean_list", vis_rul_pos);
+			rulData.y_line_0_list = parse2DArray(fullResponse, "y_line_0_list", vis_rul_pos);
+			rulData.y_line_1_list = parse2DArray(fullResponse, "y_line_1_list", vis_rul_pos);
+			rulData.x_line_list = parse2DArray(fullResponse, "x_line_list", vis_rul_pos);
+
+			if (rulData.threshold.size() == 6 && rulData.slope_mean.size() == 6)
+			{
+				m_tabDlg2.LoadRULGraphData(rulData);
+				success = true;
+			}
+		}
+
+		if (success)
 		{
 			CString resultText;
-			resultText.Format(_T("%.1f ± %.1f Month"), min_rul, range);
+			resultText.Format(_T("%.1f ± %.1f Month"), min_rul, range_val);
 			m_tabDlg2.UpdateRULDisplay(resultText);
 			AfxMessageBox(_T("성공했습니다"), MB_ICONINFORMATION);
 		}
@@ -365,12 +539,7 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 	{
 		AfxMessageBox(_T("실패했습니다"), MB_ICONERROR);
 	}
-	WinHttpCloseHandle(hRequest);
-	WinHttpCloseHandle(hConnect);
-	WinHttpCloseHandle(hSession);
 }
-
-
 
 void CLIGCapstoneDlg::OnFileLoadCsv()
 {
@@ -383,14 +552,12 @@ void CLIGCapstoneDlg::OnFileLoadCsv()
 		CString filePath = dlg.GetPathName();
 
 		int nSel = m_tabControl.GetCurSel();
-		if (nSel == 0)  // Tab1
+		if (nSel == 0)
 		{
 			m_tabDlg1.LoadCSVFile(filePath);
 
-			// CSV 경로 저장
 			m_loadedCsvPath = filePath;
 
-			// ✅ Tab2의 라디오 버튼 선택 초기화
 			m_tabDlg2.ResetRadioButtons();
 
 			AfxMessageBox(_T("CSV 파일이 로드되었습니다.\nTab2에서 CI를 선택하고 '실행'을 눌러주세요."));

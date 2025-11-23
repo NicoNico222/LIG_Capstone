@@ -8,12 +8,19 @@ IMPLEMENT_DYNAMIC(CTabDlg2, CDialog)
 
 CTabDlg2::CTabDlg2(CWnd* pParent /*=nullptr*/)
 	: CDialog(IDD_DLG_TAP2, pParent)
-	, m_nSelectedCI(0)  // 초기값 0 (선택 안됨)
+	, m_nSelectedCI(0)
+	, m_pRULGraphHelper(nullptr)
+	, m_bRULDataLoaded(false)
 {
 }
 
 CTabDlg2::~CTabDlg2()
 {
+	if (m_pRULGraphHelper != nullptr)
+	{
+		delete m_pRULGraphHelper;
+		m_pRULGraphHelper = nullptr;
+	}
 }
 
 void CTabDlg2::DoDataExchange(CDataExchange* pDX)
@@ -42,8 +49,9 @@ BOOL CTabDlg2::OnInitDialog()
 	m_fontRadio.CreatePointFont(110, _T("맑은 고딕"));
 	m_fontMonth.CreatePointFont(230, _T("맑은 고딕"));
 
+	m_pRULGraphHelper = new RULGraphHelper();
+
 	InitializeUI();
-	LoadAndDisplayImages();
 
 	CWnd* pMonth = GetDlgItem(IDC_STATIC_MONTH);
 	if (pMonth != NULL)
@@ -102,20 +110,22 @@ void CTabDlg2::OnPaint()
 {
 	CPaintDC dc(this);
 
-	if (!m_imageBayesian.IsNull())
-		DisplayImage(IDC_PICTURE_DRIFT, m_imageBayesian);
-	if (!m_imageRUL.IsNull())
-		DisplayImage(IDC_PICTURE_RUL, m_imageRUL);
+	if (m_bRULDataLoaded && m_pRULGraphHelper != nullptr)
+	{
+		CWnd* pWndDrift = GetDlgItem(IDC_PICTURE_DRIFT);
+		if (pWndDrift != nullptr)
+		{
+			CRect rectDrift;
+			pWndDrift->GetWindowRect(&rectDrift);
+			ScreenToClient(&rectDrift);
+			m_pRULGraphHelper->DrawRULGraph(&dc, rectDrift, m_rulGraphData);
+		}
+	}
 }
 
 void CTabDlg2::OnDestroy()
 {
 	CDialog::OnDestroy();
-
-	if (!m_imageBayesian.IsNull())
-		m_imageBayesian.Destroy();
-	if (!m_imageRUL.IsNull())
-		m_imageRUL.Destroy();
 }
 
 void CTabDlg2::OnSize(UINT nType, int cx, int cy)
@@ -124,19 +134,14 @@ void CTabDlg2::OnSize(UINT nType, int cx, int cy)
 
 	ArrangeControls(cx, cy);
 
-	if (!m_imageBayesian.IsNull())
-		DisplayImage(IDC_PICTURE_DRIFT, m_imageBayesian);
-	if (!m_imageRUL.IsNull())
-		DisplayImage(IDC_PICTURE_RUL, m_imageRUL);
+	Invalidate();
 }
 
-// 90% 라디오 버튼 클릭
 void CTabDlg2::OnBnClickedRadio1()
 {
 	m_nSelectedCI = 90;
 }
 
-// 95% 라디오 버튼 클릭
 void CTabDlg2::OnBnClickedRadio2()
 {
 	m_nSelectedCI = 95;
@@ -144,7 +149,6 @@ void CTabDlg2::OnBnClickedRadio2()
 
 void CTabDlg2::UpdateCISelection()
 {
-	// 현재 선택된 라디오 버튼 확인
 	if (IsDlgButtonChecked(IDC_RADIO1) == BST_CHECKED)
 	{
 		m_nSelectedCI = 90;
@@ -155,7 +159,7 @@ void CTabDlg2::UpdateCISelection()
 	}
 	else
 	{
-		m_nSelectedCI = 0;  // 선택 안됨
+		m_nSelectedCI = 0;
 	}
 }
 
@@ -200,10 +204,10 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 	CWnd* pPictureRul = GetDlgItem(IDC_PICTURE_RUL);
 
 	int margin = 20;
-	int topMargin = 10;  // 20 → 10
+	int topMargin = 10;
 	int titleHeight = 30;
 	int groupHeight = 70;
-	int spacingSmall = 5;  // 상단 요소 간 간격
+	int spacingSmall = 5;
 
 	int halfWidth = (cx - margin * 3) / 2;
 
@@ -217,7 +221,7 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 	if (pRulPredict != NULL)
 	{
 		pRulPredict->MoveWindow(boxCenterX, currentY, boxWidth, titleHeight);
-		currentY += titleHeight + spacingSmall;  // 10 → 5
+		currentY += titleHeight + spacingSmall;
 	}
 
 	if (pRulBox != NULL)
@@ -257,7 +261,7 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 	if (pRulMargin != NULL)
 	{
 		pRulMargin->MoveWindow(marginCenterX, currentY, marginBoxWidth, titleHeight);
-		currentY += titleHeight + spacingSmall;  // 10 → 5
+		currentY += titleHeight + spacingSmall;
 	}
 
 	if (pMonth != NULL)
@@ -265,8 +269,8 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 		pMonth->MoveWindow(marginCenterX, currentY, marginBoxWidth, groupHeight);
 	}
 
-	int bottomY = topMargin + titleHeight + spacingSmall + groupHeight + spacingSmall;  // 간격 최소화
-	int imageHeight = cy - bottomY - margin - titleHeight - spacingSmall;  // 이미지 높이 최대화
+	int bottomY = topMargin + titleHeight + spacingSmall + groupHeight + spacingSmall;
+	int imageHeight = cy - bottomY - margin - titleHeight - spacingSmall;
 
 	currentY = bottomY;
 	if (pDriftText != NULL)
@@ -274,7 +278,7 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 		pDriftText->MoveWindow(leftX, currentY, halfWidth, titleHeight);
 	}
 
-	currentY += titleHeight + spacingSmall;  // 10 → 5
+	currentY += titleHeight + spacingSmall;
 	if (pPictureDrift != NULL)
 	{
 		pPictureDrift->MoveWindow(leftX, currentY, halfWidth, imageHeight);
@@ -286,73 +290,11 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 		pRulText->MoveWindow(rightX, currentY, halfWidth, titleHeight);
 	}
 
-	currentY += titleHeight + spacingSmall;  // 10 → 5
+	currentY += titleHeight + spacingSmall;
 	if (pPictureRul != NULL)
 	{
 		pPictureRul->MoveWindow(rightX, currentY, halfWidth, imageHeight);
 	}
-}
-
-void CTabDlg2::LoadAndDisplayImages()
-{
-	TCHAR szPath[MAX_PATH];
-	GetCurrentDirectory(MAX_PATH, szPath);
-	CString strPath = szPath;
-
-	CString strBayesianPath = strPath + _T("\\image\\Bayesian.png");
-	CString strRULPath = strPath + _T("\\image\\RUL.png");
-
-	m_imageBayesian.Load(strBayesianPath);
-	m_imageRUL.Load(strRULPath);
-
-	if (!m_imageBayesian.IsNull())
-		DisplayImage(IDC_PICTURE_DRIFT, m_imageBayesian);
-
-	if (!m_imageRUL.IsNull())
-		DisplayImage(IDC_PICTURE_RUL, m_imageRUL);
-}
-
-void CTabDlg2::DisplayImage(UINT controlID, CImage& image)
-{
-	CWnd* pWnd = GetDlgItem(controlID);
-	if (pWnd == NULL || image.IsNull()) return;
-
-	CDC* pDC = pWnd->GetDC();
-	if (pDC == NULL) return;
-
-	CRect rect;
-	pWnd->GetClientRect(&rect);
-
-	int imgWidth = image.GetWidth();
-	int imgHeight = image.GetHeight();
-
-	float aspectRatio = (float)imgWidth / (float)imgHeight;
-	float controlRatio = (float)rect.Width() / (float)rect.Height();
-
-	int drawWidth, drawHeight;
-	int offsetX = 0, offsetY = 0;
-
-	if (aspectRatio > controlRatio)
-	{
-		drawWidth = rect.Width();
-		drawHeight = (int)(rect.Width() / aspectRatio);
-		offsetY = (rect.Height() - drawHeight) / 2;
-	}
-	else
-	{
-		drawHeight = rect.Height();
-		drawWidth = (int)(rect.Height() * aspectRatio);
-		offsetX = (rect.Width() - drawWidth) / 2;
-	}
-
-	pDC->FillSolidRect(&rect, RGB(255, 255, 255));
-
-	image.StretchBlt(pDC->m_hDC,
-		offsetX, offsetY, drawWidth, drawHeight,
-		0, 0, imgWidth, imgHeight,
-		SRCCOPY);
-
-	pWnd->ReleaseDC(pDC);
 }
 
 int CTabDlg2::GetSelectedCI()
@@ -362,7 +304,7 @@ int CTabDlg2::GetSelectedCI()
 	else if (IsDlgButtonChecked(IDC_RADIO2) == BST_CHECKED)
 		return 95;
 	else
-		return 0;   // 선택 안함 → 에러 처리해야 함
+		return 0;
 }
 
 void CTabDlg2::OnBnClickedRun()
@@ -386,11 +328,9 @@ void CTabDlg2::OnBnClickedRun()
 
 void CTabDlg2::ResetRadioButtons()
 {
-	// 모든 라디오 버튼 선택 해제
 	CheckDlgButton(IDC_RADIO1, BST_UNCHECKED);
 	CheckDlgButton(IDC_RADIO2, BST_UNCHECKED);
 
-	// 내부 변수도 초기화
 	m_nSelectedCI = 0;
 }
 
@@ -404,7 +344,7 @@ void CTabDlg2::UpdateRULDisplay(const CString& text)
 		CDC* pDC = pMonth->GetDC();
 		if (pDC != NULL)
 		{
-			pDC->SelectObject(&m_fontGroupTitle);
+			pDC->SelectObject(&m_fontMonth);
 			CRect textRect;
 			pDC->DrawText(text, &textRect, DT_CALCRECT);
 			pMonth->ReleaseDC(pDC);
@@ -413,4 +353,11 @@ void CTabDlg2::UpdateRULDisplay(const CString& text)
 		pMonth->Invalidate();
 		pMonth->UpdateWindow();
 	}
+}
+
+void CTabDlg2::LoadRULGraphData(const RULGraphData& data)
+{
+	m_rulGraphData = data;
+	m_bRULDataLoaded = true;
+	Invalidate();
 }
