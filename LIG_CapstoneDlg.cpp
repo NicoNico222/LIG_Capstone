@@ -1,8 +1,10 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "framework.h"
 #include "LIG_Capstone.h"
 #include "LIG_CapstoneDlg.h"
 #include "afxdialogex.h"
+#include <winhttp.h>
+#pragma comment(lib, "winhttp.lib")
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -97,8 +99,8 @@ BOOL CLIGCapstoneDlg::OnInitDialog()
 	int screenWidth = GetSystemMetrics(SM_CXSCREEN);
 	int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
-	int windowWidth = (int)(screenWidth * 0.95);
-	int windowHeight = (int)(screenHeight * 0.95);
+	int windowWidth = (int)(screenWidth * 0.90);
+	int windowHeight = (int)(screenHeight * 0.90);
 
 	int posX = (screenWidth - windowWidth) / 2;
 	int posY = (screenHeight - windowHeight) / 2;
@@ -204,10 +206,10 @@ void CLIGCapstoneDlg::InitializeTabControl()
 	TCITEM item;
 	item.mask = TCIF_TEXT;
 
-	item.pszText = _T("페이지1");
+	item.pszText = _T("Page1");
 	m_tabControl.InsertItem(0, &item);
 
-	item.pszText = _T("페이지2");
+	item.pszText = _T("Page2");
 	m_tabControl.InsertItem(1, &item);
 }
 
@@ -245,9 +247,84 @@ void CLIGCapstoneDlg::OnTcnSelchangeTabPage(NMHDR* pNMHDR, LRESULT* pResult)
 }
 
 
+void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
+{
+	CW2A utf8(csvPath, CP_UTF8);
+	std::string path = std::string(utf8);
+
+	// JSON 이스케이프 처리
+	std::string escaped;
+	for (char c : path)
+	{
+		if (c == '\\')
+			escaped += "\\\\";
+		else
+			escaped += c;
+	}
+
+	// JSON 생성
+	std::string jsonBody = "{ \"csv_path\": \"" + escaped + "\", \"ci\": " + std::to_string(ci) + " }";
+
+	LPCWSTR server = L"127.0.0.1";
+	INTERNET_PORT port = 8000;
+
+	HINTERNET hSession = WinHttpOpen(L"MFC Client",
+		WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+		WINHTTP_NO_PROXY_NAME,
+		WINHTTP_NO_PROXY_BYPASS, 0);
+
+	if (!hSession) return;
+
+	HINTERNET hConnect = WinHttpConnect(hSession, server, port, 0);
+	if (!hConnect) return;
+
+	HINTERNET hRequest = WinHttpOpenRequest(
+		hConnect,
+		L"POST",
+		L"/run_inference",
+		NULL,
+		WINHTTP_NO_REFERER,
+		WINHTTP_DEFAULT_ACCEPT_TYPES,
+		WINHTTP_FLAG_REFRESH);
+
+	if (!hRequest) return;
+
+	LPCWSTR header = L"Content-Type: application/json; charset=utf-8\r\n";
+
+	BOOL bResult = WinHttpSendRequest(
+		hRequest,
+		header,
+		-1,
+		(LPVOID)jsonBody.c_str(),
+		(DWORD)jsonBody.length(),
+		(DWORD)jsonBody.length(),
+		0);
+
+	if (!bResult) return;
+
+	WinHttpReceiveResponse(hRequest, NULL);
+
+	DWORD size = 0;
+	WinHttpQueryDataAvailable(hRequest, &size);
+
+	if (size > 0)
+	{
+		std::string response(size, 0);
+		DWORD downloaded = 0;
+		WinHttpReadData(hRequest, &response[0], size, &downloaded);
+
+		AfxMessageBox(CString(response.c_str()));
+	}
+
+	WinHttpCloseHandle(hRequest);
+	WinHttpCloseHandle(hConnect);
+	WinHttpCloseHandle(hSession);
+}
+
+
+
 void CLIGCapstoneDlg::OnFileLoadCsv()
 {
-	// 파일 다이얼로그
 	CFileDialog dlg(TRUE, _T("csv"), NULL,
 		OFN_HIDEREADONLY | OFN_FILEMUSTEXIST,
 		_T("CSV Files (*.csv)|*.csv|All Files (*.*)|*.*||"));
@@ -256,11 +333,16 @@ void CLIGCapstoneDlg::OnFileLoadCsv()
 	{
 		CString filePath = dlg.GetPathName();
 
-		// 현재 활성화된 탭이 Tab1인 경우에만 로드
 		int nSel = m_tabControl.GetCurSel();
 		if (nSel == 0)  // Tab1
 		{
 			m_tabDlg1.LoadCSVFile(filePath);
+
+			// 🔥 FASTAPI 전송 X
+			// 대신 멤버변수에 저장
+			m_loadedCsvPath = filePath;
+
+			AfxMessageBox(_T("CSV 파일이 로드되었습니다.\nTab2에서 CI를 선택하고 '실행'을 눌러주세요."));
 		}
 		else
 		{

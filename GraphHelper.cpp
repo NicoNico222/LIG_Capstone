@@ -19,13 +19,11 @@ CGraphHelper::~CGraphHelper()
 
 bool CGraphHelper::LoadCSV(const CString& filePath, IMUData& data)
 {
-    // 데이터 초기화
     data.XA.clear(); data.YA.clear(); data.ZA.clear();
     data.XW.clear(); data.YW.clear(); data.ZW.clear();
     data.R.clear(); data.P.clear(); data.Y.clear();
     data.N.clear(); data.E.clear(); data.D.clear();
 
-    // 파일 열기
     std::ifstream file(filePath);
     if (!file.is_open())
         return false;
@@ -36,7 +34,6 @@ bool CGraphHelper::LoadCSV(const CString& filePath, IMUData& data)
 
     while (std::getline(file, line))
     {
-        // 헤더 스킵
         if (isFirstLine)
         {
             isFirstLine = false;
@@ -47,7 +44,6 @@ bool CGraphHelper::LoadCSV(const CString& filePath, IMUData& data)
         std::string cell;
         vector<double> values;
 
-        // CSV 파싱
         while (std::getline(ss, cell, ','))
         {
             try {
@@ -58,23 +54,20 @@ bool CGraphHelper::LoadCSV(const CString& filePath, IMUData& data)
             }
         }
 
-        // 최소 열 개수 확인 (16개 이상)
-        if (values.size() >= 16)
+        if (values.size() >= 15)
         {
-            // 수정된 인덱스: 4=XA, 5=YA, 6=ZA, 7=XW, 8=YW, 9=ZW
-            //                10=R, 11=P, 12=Y, 13=N, 14=E, 15=D
-            data.XA.push_back(values[4]);
-            data.YA.push_back(values[5]);
-            data.ZA.push_back(values[6]);
-            data.XW.push_back(values[7]);
-            data.YW.push_back(values[8]);
-            data.ZW.push_back(values[9]);
-            data.R.push_back(values[10]);
-            data.P.push_back(values[11]);
-            data.Y.push_back(values[12]);
-            data.N.push_back(values[13]);
-            data.E.push_back(values[14]);
-            data.D.push_back(values[15]);
+            data.XA.push_back(values[3]);
+            data.YA.push_back(values[4]);
+            data.ZA.push_back(values[5]);
+            data.XW.push_back(values[6]);
+            data.YW.push_back(values[7]);
+            data.ZW.push_back(values[8]);
+            data.N.push_back(values[9]);
+            data.E.push_back(values[10]);
+            data.D.push_back(values[11]);
+            data.R.push_back(values[12]);
+            data.P.push_back(values[13]);
+            data.Y.push_back(values[14]);
 
             lineCount++;
         }
@@ -167,45 +160,64 @@ void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
 {
     if (data.empty()) return;
 
-    // 배경
     SolidBrush bgBrush(Color(255, 245, 245, 245));
     graphics.FillRectangle(&bgBrush, rect);
 
-    // 테두리
     Pen borderPen(Color(255, 200, 200, 200), 1.0f);
     graphics.DrawRectangle(&borderPen, rect);
 
-    // 제목 영역
     float titleHeight = 25.0f;
     RectF titleRect(rect.X, rect.Y, rect.Width, titleHeight);
     DrawTitle(graphics, titleRect, title);
 
-    // 그래프 영역
-    RectF graphRect(rect.X + 40, rect.Y + titleHeight + 5,
-        rect.Width - 50, rect.Height - titleHeight - 35);
+    RectF graphRect(rect.X + 60, rect.Y + titleHeight + 5,
+        rect.Width - 75, rect.Height - titleHeight - 40);
 
-    // 축 그리기
-    DrawAxis(graphics, graphRect);
-
-    // 데이터 범위 계산
     int dataSize = (int)data.size();
     int displaySize = min(dataSize, maxPoints);
 
     double minVal = *std::min_element(data.begin(), data.begin() + displaySize);
     double maxVal = *std::max_element(data.begin(), data.begin() + displaySize);
-
     double range = maxVal - minVal;
     if (range < 1e-10) range = 1.0;
 
-    // 데이터 그리기
-    Pen dataPen(Color(255, 31, 119, 180), 1.0f);
+    Pen axisPen(Color(255, 0, 0, 0), 1.0f);
+    graphics.DrawLine(&axisPen,
+        PointF(graphRect.X, graphRect.Y),
+        PointF(graphRect.X, graphRect.Y + graphRect.Height));
+    graphics.DrawLine(&axisPen,
+        PointF(graphRect.X, graphRect.Y + graphRect.Height),
+        PointF(graphRect.X + graphRect.Width, graphRect.Y + graphRect.Height));
+
+    Pen gridPen(Color(100, 200, 200, 200), 0.5f);
+    gridPen.SetDashStyle(DashStyleDot);
+
+    for (int i = 1; i <= 4; i++)
+    {
+        float y = graphRect.Y + graphRect.Height * i / 5.0f;
+        graphics.DrawLine(&gridPen,
+            PointF(graphRect.X, y),
+            PointF(graphRect.X + graphRect.Width, y));
+    }
+
+    for (int i = 1; i <= 4; i++)
+    {
+        float x = graphRect.X + graphRect.Width * i / 5.0f;
+        graphics.DrawLine(&gridPen,
+            PointF(x, graphRect.Y),
+            PointF(x, graphRect.Y + graphRect.Height));
+    }
+
+    Pen dataPen(Color(255, 31, 119, 180), 1.5f);
 
     vector<PointF> points;
     for (int i = 0; i < displaySize; i++)
     {
-        float x = graphRect.X + (float)i / displaySize * graphRect.Width;
-        float normalizedY = (float)((data[i] - minVal) / range);
-        float y = graphRect.Y + graphRect.Height * (1.0f - normalizedY);
+        float x_norm = (float)i / (displaySize - 1);
+        float y_norm = (float)((data[i] - minVal) / range);
+
+        float x = graphRect.X + x_norm * graphRect.Width;
+        float y = graphRect.Y + graphRect.Height * (1.0f - y_norm);
 
         points.push_back(PointF(x, y));
     }
@@ -215,31 +227,50 @@ void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
         graphics.DrawLines(&dataPen, &points[0], (int)points.size());
     }
 
-    // Y축 눈금
     Gdiplus::Font font(L"맑은 고딕", 8);
     SolidBrush textBrush(Color(255, 0, 0, 0));
     StringFormat format;
     format.SetAlignment(StringAlignmentFar);
     format.SetLineAlignment(StringAlignmentCenter);
 
-    for (int i = 0; i <= 4; i++)
+    for (int i = 0; i <= 5; i++)
     {
-        float yPos = graphRect.Y + graphRect.Height * i / 4.0f;
-        double value = maxVal - (maxVal - minVal) * i / 4.0;
+        float yPos = graphRect.Y + graphRect.Height * i / 5.0f;
+        double value = 1.0 - (i / 5.0);
 
         CString label;
-        label.Format(_T("%.2f"), value);
+        label.Format(_T("%.1f"), value);
 
-        RectF labelRect(graphRect.X - 35, yPos - 8, 30, 16);
+        RectF labelRect(graphRect.X - 50, yPos - 8, 45, 16);
         graphics.DrawString(label, -1, &font, labelRect, &format, &textBrush);
     }
 
-    // X축 레이블
     format.SetAlignment(StringAlignmentCenter);
-    CString xlabel = _T("Time index (100Hz)");
-    RectF xlabelRect(graphRect.X, graphRect.Y + graphRect.Height + 5,
-        graphRect.Width, 20);
+    for (int i = 0; i <= 5; i++)
+    {
+        float xPos = graphRect.X + graphRect.Width * i / 5.0f;
+        double value = i / 5.0;
+
+        CString label;
+        label.Format(_T("%.1f"), value);
+
+        RectF labelRect(xPos - 20, graphRect.Y + graphRect.Height + 5, 40, 16);
+        graphics.DrawString(label, -1, &font, labelRect, &format, &textBrush);
+    }
+
+    CString xlabel = _T("normalized time");
+    RectF xlabelRect(graphRect.X, graphRect.Y + graphRect.Height + 22,
+        graphRect.Width, 16);
     graphics.DrawString(xlabel, -1, &font, xlabelRect, &format, &textBrush);
+
+    StringFormat vformat;
+    vformat.SetAlignment(StringAlignmentCenter);
+    vformat.SetLineAlignment(StringAlignmentCenter);
+    vformat.SetFormatFlags(StringFormatFlagsDirectionVertical);
+
+    CString ylabel = _T("normalized value");
+    RectF ylabelRect(graphRect.X - 55, graphRect.Y, 16, graphRect.Height);
+    graphics.DrawString(ylabel, -1, &font, ylabelRect, &vformat, &textBrush);
 }
 
 void CGraphHelper::DrawAxis(Graphics& graphics, RectF rect)

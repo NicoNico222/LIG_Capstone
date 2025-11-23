@@ -26,6 +26,8 @@
 #define IDC_STATIC_RUL_PREDICT          1020
 #define IDC_STATIC_RUL_MARGIN           1021
 #define IDC_STATIC_MONTH                1022
+#define IDC_BUTTON1                     1023
+#define IDC_BTN_RUN                     1023
 #define ID_32771                        32771
 #define ID_32772                        32772
 #define ID_FILE_LOAD_CSV                32773
@@ -36,7 +38,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        136
 #define _APS_NEXT_COMMAND_VALUE         32774
-#define _APS_NEXT_CONTROL_VALUE         1023
+#define _APS_NEXT_CONTROL_VALUE         1024
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

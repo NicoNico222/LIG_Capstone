@@ -8,7 +8,9 @@ class CTabDlg2 : public CDialog
 
 public:
 	CTabDlg2(CWnd* pParent = nullptr);
+	int GetSelectedCI();
 	virtual ~CTabDlg2();
+	afx_msg void OnBnClickedRun();
 
 #ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_DLG_TAP2 };
@@ -40,4 +42,6 @@ private:
 	void LoadAndDisplayImages();
 	void DisplayImage(UINT controlID, CImage& image);
 	void UpdateCISelection();  // 추가: CI 선택 업데이트
+public:
+	afx_msg void OnBnClickedButton1();
 };
