@@ -31,6 +31,7 @@ bool CGraphHelper::LoadCSV(const CString& filePath, IMUData& data)
     std::string line;
     bool isFirstLine = true;
     int lineCount = 0;
+    int mode8LineCount = 0;  // IMU_MODE=8인 행의 카운터
 
     while (std::getline(file, line))
     {
@@ -56,12 +57,32 @@ bool CGraphHelper::LoadCSV(const CString& filePath, IMUData& data)
 
         if (values.size() >= 15)
         {
+            // IMU_MODE 확인 (첫 번째 컬럼, index 0)
+            int imu_mode = (int)values[0];
+
+            // IMU_MODE가 8이 아니면 스킵
+            if (imu_mode != 8)
+                continue;
+
+            mode8LineCount++;
+
+            // IMU_MODE=8인 행 중 200행 이전은 스킵
+            if (mode8LineCount < 200)
+                continue;
+
+            // IMU_MODE=8인 행 중 10200행 이후는 스킵
+            if (mode8LineCount > 10200)
+                break;
+
+            // X 데이터
             data.XA.push_back(values[3]);
             data.YA.push_back(values[4]);
             data.ZA.push_back(values[5]);
             data.XW.push_back(values[6]);
             data.YW.push_back(values[7]);
             data.ZW.push_back(values[8]);
+
+            // Y 데이터 (원본 값)
             data.N.push_back(values[9]);
             data.E.push_back(values[10]);
             data.D.push_back(values[11]);
@@ -123,32 +144,27 @@ void CGraphHelper::DrawGraph(CDC* pDC, CRect rect, const IMUData& data, bool isX
             else DrawSingleGraph(graphics, rightRect, data.ZW, _T("ZW"));
         }
     }
-    else
+    else  // Y 데이터
     {
-        // Y 데이터 - Python과 동일한 순서
-        // for i in range(3):
-        //     axes[i,0].plot(test_Y[:, i])      -> R, P, Y (왼쪽)
-        //     axes[i,1].plot(test_Y[:, i+3])    -> N, E, D (오른쪽)
-
         for (int i = 0; i < 3; i++)
         {
-            // 왼쪽: R DIFF, P DIFF, Y DIFF
+            // 왼쪽: Roll, Pitch, Yaw
             int leftX = rect.left + margin;
             int leftY = rect.top + margin + i * (graphHeight + margin);
             RectF leftRect((REAL)leftX, (REAL)leftY, (REAL)graphWidth, (REAL)graphHeight);
 
-            if (i == 0) DrawSingleGraph(graphics, leftRect, data.R, _T("R DIFF"));
-            else if (i == 1) DrawSingleGraph(graphics, leftRect, data.P, _T("P DIFF"));
-            else DrawSingleGraph(graphics, leftRect, data.Y, _T("Y DIFF"));
+            if (i == 0) DrawSingleGraph(graphics, leftRect, data.R, _T("Roll"));
+            else if (i == 1) DrawSingleGraph(graphics, leftRect, data.P, _T("Pitch"));
+            else DrawSingleGraph(graphics, leftRect, data.Y, _T("Yaw"));
 
-            // 오른쪽: N DIFF, E DIFF, D DIFF
+            // 오른쪽: V_North, V_East, V_Down
             int rightX = rect.left + margin + graphWidth + margin;
             int rightY = rect.top + margin + i * (graphHeight + margin);
             RectF rightRect((REAL)rightX, (REAL)rightY, (REAL)graphWidth, (REAL)graphHeight);
 
-            if (i == 0) DrawSingleGraph(graphics, rightRect, data.N, _T("N DIFF"));
-            else if (i == 1) DrawSingleGraph(graphics, rightRect, data.E, _T("E DIFF"));
-            else DrawSingleGraph(graphics, rightRect, data.D, _T("D DIFF"));
+            if (i == 0) DrawSingleGraph(graphics, rightRect, data.N, _T("V_North"));
+            else if (i == 1) DrawSingleGraph(graphics, rightRect, data.E, _T("V_East"));
+            else DrawSingleGraph(graphics, rightRect, data.D, _T("V_Down"));
         }
     }
 }
@@ -176,10 +192,11 @@ void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
     int dataSize = (int)data.size();
     int displaySize = min(dataSize, maxPoints);
 
+    // Min-Max 정규화 (Python과 동일)
     double minVal = *std::min_element(data.begin(), data.begin() + displaySize);
     double maxVal = *std::max_element(data.begin(), data.begin() + displaySize);
     double range = maxVal - minVal;
-    if (range < 1e-10) range = 1.0;
+    if (range < 1e-8) range = 1.0;  // 1e-10 -> 1e-8로 변경
 
     Pen axisPen(Color(255, 0, 0, 0), 1.0f);
     graphics.DrawLine(&axisPen,
@@ -213,10 +230,14 @@ void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
     vector<PointF> points;
     for (int i = 0; i < displaySize; i++)
     {
+        // X축: 시간 정규화 (0~1)
         float x_norm = (float)i / (displaySize - 1);
+
+        // Y축: Min-Max 정규화 (0~1) - Python과 동일
         float y_norm = (float)((data[i] - minVal) / range);
 
         float x = graphRect.X + x_norm * graphRect.Width;
+        // Y축 반전: 0이 아래, 1이 위 (Python 그래프와 동일)
         float y = graphRect.Y + graphRect.Height * (1.0f - y_norm);
 
         points.push_back(PointF(x, y));
@@ -233,9 +254,11 @@ void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
     format.SetAlignment(StringAlignmentFar);
     format.SetLineAlignment(StringAlignmentCenter);
 
+    // Y축 레이블: 0.0 ~ 1.0 (아래에서 위로)
     for (int i = 0; i <= 5; i++)
     {
         float yPos = graphRect.Y + graphRect.Height * i / 5.0f;
+        // 반전된 값 표시
         double value = 1.0 - (i / 5.0);
 
         CString label;
@@ -245,6 +268,7 @@ void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
         graphics.DrawString(label, -1, &font, labelRect, &format, &textBrush);
     }
 
+    // X축 레이블: 0.0 ~ 1.0
     format.SetAlignment(StringAlignmentCenter);
     for (int i = 0; i <= 5; i++)
     {
