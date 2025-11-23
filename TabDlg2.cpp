@@ -200,24 +200,24 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 	CWnd* pPictureRul = GetDlgItem(IDC_PICTURE_RUL);
 
 	int margin = 20;
-	int topMargin = 20;
+	int topMargin = 10;  // 20 → 10
 	int titleHeight = 30;
 	int groupHeight = 70;
-	int spacing = 10;
+	int spacingSmall = 5;  // 상단 요소 간 간격
 
 	int halfWidth = (cx - margin * 3) / 2;
 
 	int leftX = margin;
 	int currentY = topMargin;
 
-	int boxWidth = 250; // RUL 예측
+	int boxWidth = 250;
 	int btnWidth = 100;
 	int boxCenterX = leftX + (halfWidth - boxWidth) / 2;
 
 	if (pRulPredict != NULL)
 	{
 		pRulPredict->MoveWindow(boxCenterX, currentY, boxWidth, titleHeight);
-		currentY += titleHeight + 10;
+		currentY += titleHeight + spacingSmall;  // 10 → 5
 	}
 
 	if (pRulBox != NULL)
@@ -251,13 +251,13 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 	int rightX = leftX + halfWidth + margin;
 	currentY = topMargin;
 
-	int marginBoxWidth = 330; // RUL 오차범위 가로 크기
+	int marginBoxWidth = 300;
 	int marginCenterX = rightX + (halfWidth - marginBoxWidth) / 2;
 
 	if (pRulMargin != NULL)
 	{
 		pRulMargin->MoveWindow(marginCenterX, currentY, marginBoxWidth, titleHeight);
-		currentY += titleHeight + 10;
+		currentY += titleHeight + spacingSmall;  // 10 → 5
 	}
 
 	if (pMonth != NULL)
@@ -265,8 +265,8 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 		pMonth->MoveWindow(marginCenterX, currentY, marginBoxWidth, groupHeight);
 	}
 
-	int bottomY = topMargin + titleHeight + 10 + groupHeight + spacing + 20;
-	int imageHeight = cy - bottomY - margin * 2 - titleHeight - spacing;
+	int bottomY = topMargin + titleHeight + spacingSmall + groupHeight + spacingSmall;  // 간격 최소화
+	int imageHeight = cy - bottomY - margin - titleHeight - spacingSmall;  // 이미지 높이 최대화
 
 	currentY = bottomY;
 	if (pDriftText != NULL)
@@ -274,7 +274,7 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 		pDriftText->MoveWindow(leftX, currentY, halfWidth, titleHeight);
 	}
 
-	currentY += titleHeight + spacing;
+	currentY += titleHeight + spacingSmall;  // 10 → 5
 	if (pPictureDrift != NULL)
 	{
 		pPictureDrift->MoveWindow(leftX, currentY, halfWidth, imageHeight);
@@ -286,7 +286,7 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 		pRulText->MoveWindow(rightX, currentY, halfWidth, titleHeight);
 	}
 
-	currentY += titleHeight + spacing;
+	currentY += titleHeight + spacingSmall;  // 10 → 5
 	if (pPictureRul != NULL)
 	{
 		pPictureRul->MoveWindow(rightX, currentY, halfWidth, imageHeight);
