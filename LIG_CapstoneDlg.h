@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "TabDlg1.h"
 #include "TabDlg2.h"
+#include "TabDlg3.h"  // 추가
 
 class CLIGCapstoneDlg : public CDialogEx
 {
@@ -20,7 +21,7 @@ protected:
 protected:
 	HICON m_hIcon;
 	CBrush m_brushBg;
-	CFont m_fontTab;  // 탭 폰트 추가
+	CFont m_fontTab;
 
 	// Tab Control
 	CTabCtrl m_tabControl;
@@ -28,6 +29,7 @@ protected:
 	// Tab Dialog
 	CTabDlg1 m_tabDlg1;
 	CTabDlg2 m_tabDlg2;
+	CTabDlg3 m_tabDlg3;  // 추가
 	CDialog* m_pCurrentTab;
 
 	virtual BOOL OnInitDialog();

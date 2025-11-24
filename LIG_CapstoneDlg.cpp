@@ -113,6 +113,7 @@ BOOL CLIGCapstoneDlg::OnInitDialog()
 
 	m_tabDlg1.Create(IDD_DLG_TAP1, &m_tabControl);
 	m_tabDlg2.Create(IDD_DLG_TAP2, &m_tabControl);
+	m_tabDlg3.Create(IDD_DLG_TAP3, &m_tabControl);
 
 	ShowTab(0);
 
@@ -213,6 +214,9 @@ void CLIGCapstoneDlg::InitializeTabControl()
 
 	item.pszText = _T("Page2");
 	m_tabControl.InsertItem(1, &item);
+
+	item.pszText = _T("Page3");
+	m_tabControl.InsertItem(2, &item);
 }
 
 void CLIGCapstoneDlg::ShowTab(int nTab)
@@ -221,11 +225,9 @@ void CLIGCapstoneDlg::ShowTab(int nTab)
 	{
 		m_pCurrentTab->ShowWindow(SW_HIDE);
 	}
-
 	CRect tabRect;
 	m_tabControl.GetClientRect(&tabRect);
 	m_tabControl.AdjustRect(FALSE, &tabRect);
-
 	if (nTab == 0)
 	{
 		m_pCurrentTab = &m_tabDlg1;
@@ -237,6 +239,12 @@ void CLIGCapstoneDlg::ShowTab(int nTab)
 		m_pCurrentTab = &m_tabDlg2;
 		m_tabDlg2.MoveWindow(&tabRect);
 		m_tabDlg2.ShowWindow(SW_SHOW);
+	}
+	else if (nTab == 2)  // 이 부분만 추가
+	{
+		m_pCurrentTab = &m_tabDlg3;
+		m_tabDlg3.MoveWindow(&tabRect);
+		m_tabDlg3.ShowWindow(SW_SHOW);
 	}
 }
 
@@ -331,6 +339,7 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 		outFile.close();
 
 		bool success = false;
+		RULGraphData rulData;
 
 		size_t data_pos = fullResponse.find("\"data\"");
 		if (data_pos == std::string::npos)
@@ -375,7 +384,6 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 		size_t vis_rul_pos = fullResponse.find("\"vis_rul_graph\"", data_pos);
 		if (vis_rul_pos != std::string::npos)
 		{
-			RULGraphData rulData;
 			rulData.ci = ci;
 
 			auto parseDoubleArray = [](const std::string& json, const std::string& key, size_t start) -> std::vector<double> {
@@ -528,6 +536,9 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 			CString resultText;
 			resultText.Format(_T("%.1f ± %.1f Month"), min_rul, range_val);
 			m_tabDlg2.UpdateRULDisplay(resultText);
+			m_tabDlg3.UpdateRULDisplay(resultText);
+			m_tabDlg3.UpdateCIDisplay(ci);
+			m_tabDlg3.LoadRULGraphData(rulData);
 			AfxMessageBox(_T("성공했습니다"), MB_ICONINFORMATION);
 		}
 		else

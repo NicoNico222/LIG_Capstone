@@ -45,6 +45,9 @@
     <ClInclude Include="RULGraphHelper.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="TabDlg3.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="LIG_Capstone.cpp">
@@ -66,6 +69,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="RULGraphHelper.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="TabDlg3.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>

@@ -112,13 +112,13 @@ void CTabDlg2::OnPaint()
 
 	if (m_bRULDataLoaded && m_pRULGraphHelper != nullptr)
 	{
-		CWnd* pWndDrift = GetDlgItem(IDC_PICTURE_DRIFT);
-		if (pWndDrift != nullptr)
+		CWnd* pWndRul = GetDlgItem(IDC_PICTURE_RUL);
+		if (pWndRul != nullptr)
 		{
-			CRect rectDrift;
-			pWndDrift->GetWindowRect(&rectDrift);
-			ScreenToClient(&rectDrift);
-			m_pRULGraphHelper->DrawRULGraph(&dc, rectDrift, m_rulGraphData);
+			CRect rectRul;
+			pWndRul->GetWindowRect(&rectRul);
+			ScreenToClient(&rectRul);
+			m_pRULGraphHelper->DrawRULGraph(&dc, rectRul, m_rulGraphData);
 		}
 	}
 }
@@ -199,9 +199,7 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 	CWnd* pMonth = GetDlgItem(IDC_STATIC_MONTH);
 	CWnd* pBtnRun = GetDlgItem(IDC_BTN_RUN);
 	CWnd* pDriftText = GetDlgItem(IDC_STATIC_DRIFT_TEXT);
-	CWnd* pRulText = GetDlgItem(IDC_STATIC_RUL_TEXT);
 	CWnd* pPictureDrift = GetDlgItem(IDC_PICTURE_DRIFT);
-	CWnd* pPictureRul = GetDlgItem(IDC_PICTURE_RUL);
 
 	int margin = 20;
 	int topMargin = 10;
@@ -275,28 +273,15 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 	currentY = bottomY;
 	if (pDriftText != NULL)
 	{
-		pDriftText->MoveWindow(leftX, currentY, halfWidth, titleHeight);
+		pDriftText->MoveWindow(leftX, currentY, cx - margin * 2, titleHeight);
 	}
 
 	currentY += titleHeight + spacingSmall;
 	if (pPictureDrift != NULL)
 	{
-		pPictureDrift->MoveWindow(leftX, currentY, halfWidth, imageHeight);
-	}
-
-	currentY = bottomY;
-	if (pRulText != NULL)
-	{
-		pRulText->MoveWindow(rightX, currentY, halfWidth, titleHeight);
-	}
-
-	currentY += titleHeight + spacingSmall;
-	if (pPictureRul != NULL)
-	{
-		pPictureRul->MoveWindow(rightX, currentY, halfWidth, imageHeight);
+		pPictureDrift->MoveWindow(leftX, currentY, cx - margin * 2, imageHeight);
 	}
 }
-
 int CTabDlg2::GetSelectedCI()
 {
 	if (IsDlgButtonChecked(IDC_RADIO1) == BST_CHECKED)
