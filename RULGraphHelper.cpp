@@ -210,15 +210,18 @@ void RULGraphHelper::DrawSingleRULGraph(
     yFormat.SetAlignment(StringAlignmentFar);
     yFormat.SetLineAlignment(StringAlignmentCenter);
 
-    for (int i = 0; i <= 5; i++)
+    for (int i = 0; i <= 8; i++) // [수정] 0부터 8까지 (총 9개 눈금)
     {
-        float yPos = graphRect.Y + graphRect.Height * i / 5.0f;
-        double value = 1.0 - (2.0 * i / 5.0);
+        float yPos = graphRect.Y + graphRect.Height * i / 8.0f; // [수정] 8.0f로 나눠서 위치 계산
+        double value = 1.0 - (2.0 * i / 8.0);                  // [수정] 2.0 / 8.0 = 0.25 간격
 
+        // 그리드 선
         graphics.DrawLine(&gridPen, PointF(graphRect.X, yPos), PointF(graphRect.X + graphRect.Width, yPos));
 
+        // 레이블
         CString label;
-        label.Format(_T("%.1f"), value);
+        // 0.25 간격(0.75, 0.25, -0.25, -0.75)을 정확히 표시하기 위해 %.2f를 사용
+        label.Format(_T("%.2f"), value); // [수정] %.1f 대신 %.2f 사용
         RectF labelRect(graphRect.X - 40, yPos - 8, 35, 16);
         graphics.DrawString(label, -1, &axisFont, labelRect, &yFormat, &textBrush);
     }
@@ -469,7 +472,7 @@ void RULGraphHelper::DrawSinglePredictionGraph(Graphics& graphics, RectF rect,
 {
     if (samples.empty()) return;
 
-    SolidBrush bgBrush(Color(255, 245, 245, 250));
+    SolidBrush bgBrush(Color(255, 245, 245, 245));
     graphics.FillRectangle(&bgBrush, rect);
 
     Pen borderPen(Color(255, 200, 200, 200), 1.0f);
@@ -488,13 +491,27 @@ void RULGraphHelper::DrawSinglePredictionGraph(Graphics& graphics, RectF rect,
     RectF plotRect(rect.X + 50, rect.Y + titleHeight + 10,
         rect.Width - 75, rect.Height - titleHeight - legendHeight - 25);
 
-    double minVal = *std::min_element(samples.begin(), samples.end());
-    double maxVal = *std::max_element(samples.begin(), samples.end());
-    minVal = min(minVal, min(mean_val, min(ci_lower, min(ci_upper, true_val))));
-    maxVal = max(maxVal, max(mean_val, max(ci_lower, max(ci_upper, true_val))));
-    double range = maxVal - minVal;
-    minVal -= range * 0.1;
-    maxVal += range * 0.1;
+    // --------------------------------------------------------------------------
+    // [수정 시작] X축 범위 계산 및 Nice Axis 적용
+    // --------------------------------------------------------------------------
+    double rawMin = *std::min_element(samples.begin(), samples.end());
+    double rawMax = *std::max_element(samples.begin(), samples.end());
+
+    // 모든 주요 지표(Mean, CI, True)를 포함하도록 범위 확장
+    rawMin = min(rawMin, min(mean_val, min(ci_lower, min(ci_upper, true_val))));
+    rawMax = max(rawMax, max(mean_val, max(ci_lower, max(ci_upper, true_val))));
+
+    // 페이지 3의 CalculateNiceAxis를 사용하여 깔끔한 축 정보 획득
+    AxisInfo xAxis = CalculateNiceAxis(rawMin, rawMax, 8); // 8개 정도의 촘촘한 눈금 요청
+    double xMin = xAxis.min_val;
+    double xMax = xAxis.max_val;
+    double xRange = xMax - xMin;
+    if (xRange == 0) xRange = 1.0; // 0 나누기 방지
+
+    // 기존의 minVal, maxVal 변수는 이제 사용하지 않음 (xMin, xMax 사용)
+    // --------------------------------------------------------------------------
+    // [수정 끝] X축 범위 계산
+    // --------------------------------------------------------------------------
 
     Pen axisPen(Color(255, 100, 100, 100), 1.0f);
     graphics.DrawLine(&axisPen,
@@ -504,47 +521,78 @@ void RULGraphHelper::DrawSinglePredictionGraph(Graphics& graphics, RectF rect,
         PointF(plotRect.X, plotRect.Y),
         PointF(plotRect.X, plotRect.Y + plotRect.Height));
 
-    Pen gridPen(Color(50, 200, 200, 200), 0.5f);
+    Pen gridPen(Color(100, 200, 200, 200), 0.5f);
     gridPen.SetDashStyle(DashStyleDot);
-    for (int i = 1; i <= 4; i++)
-    {
-        float x = plotRect.X + plotRect.Width * i / 5.0f;
-        graphics.DrawLine(&gridPen, PointF(x, plotRect.Y), PointF(x, plotRect.Y + plotRect.Height));
-    }
 
-    double maxDensity = 2.5;
-    DrawKDE(graphics, plotRect, samples, minVal, maxVal, maxDensity);
-
-    Pen meanPen(Color(255, 255, 0, 0), 2.0f);
-    meanPen.SetDashStyle(DashStyleDash);
-    float meanX = plotRect.X + plotRect.Width * (float)((mean_val - minVal) / (maxVal - minVal));
-    graphics.DrawLine(&meanPen, PointF(meanX, plotRect.Y), PointF(meanX, plotRect.Y + plotRect.Height));
-
-    Pen ciPen(Color(255, 255, 165, 0), 1.5f);
-    ciPen.SetDashStyle(DashStyleDot);
-    float ciLowerX = plotRect.X + plotRect.Width * (float)((ci_lower - minVal) / (maxVal - minVal));
-    float ciUpperX = plotRect.X + plotRect.Width * (float)((ci_upper - minVal) / (maxVal - minVal));
-    graphics.DrawLine(&ciPen, PointF(ciLowerX, plotRect.Y), PointF(ciLowerX, plotRect.Y + plotRect.Height));
-    graphics.DrawLine(&ciPen, PointF(ciUpperX, plotRect.Y), PointF(ciUpperX, plotRect.Y + plotRect.Height));
-
-    Pen truePen(Color(255, 0, 128, 0), 2.0f);
-    float trueX = plotRect.X + plotRect.Width * (float)((true_val - minVal) / (maxVal - minVal));
-    graphics.DrawLine(&truePen, PointF(trueX, plotRect.Y), PointF(trueX, plotRect.Y + plotRect.Height));
-
+    // --------------------------------------------------------------------------
+    // [수정 시작] X축 그리드 및 레이블 (Nice Axis 기반)
+    // 기존의 5등분 루프를 Nice Axis 루프로 교체
+    // --------------------------------------------------------------------------
     Gdiplus::Font axisFont(L"맑은 고딕", 8);
     SolidBrush axisBrush(Color(255, 0, 0, 0));
     StringFormat centerFormat;
     centerFormat.SetAlignment(StringAlignmentCenter);
 
-    for (int i = 0; i <= 5; i++)
+    for (int i = 0; i < xAxis.tick_count; i++)
     {
-        double val = minVal + (maxVal - minVal) * i / 5.0;
-        float x = plotRect.X + plotRect.Width * i / 5.0f;
+        double currentVal = xAxis.min_val + i * xAxis.step;
+
+        // 현재 눈금 값이 X축 범위 내에 있는지 확인 (CalculateNiceAxis가 이미 처리하지만 안전 장치)
+        if (currentVal < xMin - 1e-9 || currentVal > xMax + 1e-9) continue;
+
+        float x_norm_ratio = (float)((currentVal - xMin) / xRange);
+        float xPos = plotRect.X + x_norm_ratio * plotRect.Width;
+
+        // 그리드 선 그리기
+        if (i > 0 && i < xAxis.tick_count - 1)
+            graphics.DrawLine(&gridPen, PointF(xPos, plotRect.Y), PointF(xPos, plotRect.Y + plotRect.Height));
+
+        // 텍스트 라벨 (정확도 조정: 소수점 1~2자리)
         CString label;
-        label.Format(_T("%.2f"), val);
-        RectF labelRect(x - 30, plotRect.Y + plotRect.Height + 5, 60, 20);
+        if (abs(currentVal - round(currentVal)) < 1e-5) label.Format(_T("%.0f"), currentVal);
+        else label.Format(_T("%.2f"), currentVal);
+
+        RectF labelRect(xPos - 30, plotRect.Y + plotRect.Height + 5, 60, 20);
         graphics.DrawString(label, -1, &axisFont, labelRect, &centerFormat, &axisBrush);
     }
+    // --------------------------------------------------------------------------
+    // [수정 끝] X축 그리드 및 레이블
+    // --------------------------------------------------------------------------
+
+    // Y축 관련 로직 (기존 코드 유지: maxDensity = 2.5)
+    double maxDensity = 2.5;
+    DrawKDE(graphics, plotRect, samples, xMin, xMax, maxDensity); // minVal, maxVal 대신 xMin, xMax 사용
+
+    Pen meanPen(Color(255, 255, 0, 0), 2.0f);
+    meanPen.SetDashStyle(DashStyleDash);
+
+    // --------------------------------------------------------------------------
+    // [수정 시작] 수직선 그리기 (minVal/maxVal 대신 xMin/xMax 사용)
+    // --------------------------------------------------------------------------
+    auto GetXPos = [&](double val, double minV, double maxV, float width) -> float {
+        if (maxV - minV == 0) return plotRect.X;
+        return plotRect.X + width * (float)((val - minV) / (maxV - minV));
+        };
+
+    float meanX = GetXPos(mean_val, xMin, xMax, plotRect.Width);
+    graphics.DrawLine(&meanPen, PointF(meanX, plotRect.Y), PointF(meanX, plotRect.Y + plotRect.Height));
+
+    Pen ciPen(Color(255, 255, 165, 0), 1.5f);
+    ciPen.SetDashStyle(DashStyleDot);
+
+    float ciLowerX = GetXPos(ci_lower, xMin, xMax, plotRect.Width);
+    float ciUpperX = GetXPos(ci_upper, xMin, xMax, plotRect.Width);
+
+    graphics.DrawLine(&ciPen, PointF(ciLowerX, plotRect.Y), PointF(ciLowerX, plotRect.Y + plotRect.Height));
+    graphics.DrawLine(&ciPen, PointF(ciUpperX, plotRect.Y), PointF(ciUpperX, plotRect.Y + plotRect.Height));
+
+    Pen truePen(Color(255, 0, 128, 0), 2.0f);
+    float trueX = GetXPos(true_val, xMin, xMax, plotRect.Width);
+    graphics.DrawLine(&truePen, PointF(trueX, plotRect.Y), PointF(trueX, plotRect.Y + plotRect.Height));
+
+    // --------------------------------------------------------------------------
+    // [수정 끝] 수직선 그리기
+    // --------------------------------------------------------------------------
 
     CString xlabel = _T("Drift Value");
     RectF xlabelRect(plotRect.X, plotRect.Y + plotRect.Height + 25, plotRect.Width, 20);
@@ -558,6 +606,12 @@ void RULGraphHelper::DrawSinglePredictionGraph(Graphics& graphics, RectF rect,
     {
         double densityVal = i * 0.5;
         float y = plotRect.Y + plotRect.Height - (plotRect.Height * (float)(densityVal / maxDensity));
+
+        // [추가 시작] Y축 격자무늬 가로선 그리기
+        if (i > 0) // i=0은 X축(바닥선)이므로 제외하고 0.5, 1.0, 1.5, 2.0 선만 그립니다.
+            graphics.DrawLine(&gridPen, PointF(plotRect.X, y), PointF(plotRect.X + plotRect.Width, y));
+        // [추가 끝]
+
         CString label;
         label.Format(_T("%.1f"), densityVal);
         RectF labelRect(plotRect.X - 50, y - 10, 45, 20);
