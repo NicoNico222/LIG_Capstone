@@ -38,16 +38,42 @@ private:
 	int m_nSelectedCI;
 
 	RULGraphHelper* m_pRULGraphHelper;
+
+	// --- [수정] 현재 화면에 표시할 데이터 ---
 	RULGraphData m_rulGraphData;
 	bool m_bRULDataLoaded;
+
+	PredictionGraphData m_predGraphData;
+	bool m_bPredDataLoaded;
+
+	// --- [추가] 90%와 95% 결과를 각각 저장할 캐시 변수 ---
+	PredictionGraphData m_predData90;
+	PredictionGraphData m_predData95;
+	bool m_bLoaded90; // 90% 데이터가 한 번이라도 로드되었는지 여부
+	bool m_bLoaded95; // 95% 데이터가 한 번이라도 로드되었는지 여부
+
+	// RUL 데이터(텍스트 등)도 CI별로 다를 수 있으므로 캐시 필요
+	RULGraphData m_rulData90;
+	RULGraphData m_rulData95;
+
+
+	// 비트맵 캐싱
+	CImage m_cachedPredGraph;
+	bool m_bCacheValid;
+	CRect m_lastPredRect;
 
 	void ArrangeControls(int cx, int cy);
 	void InitializeUI();
 	void UpdateCISelection();
+	void InvalidateCache();
+
+	// --- [추가] 뷰 업데이트 헬퍼 함수 ---
+	void UpdateViewFromCache();
 
 public:
 	void ResetRadioButtons();
 	void UpdateRULDisplay(const CString& text);
 	void LoadRULGraphData(const RULGraphData& data);
+	void LoadPredictionGraphData(const PredictionGraphData& data);
 	afx_msg void OnBnClickedButton1();
 };

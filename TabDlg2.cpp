@@ -11,6 +11,10 @@ CTabDlg2::CTabDlg2(CWnd* pParent /*=nullptr*/)
 	, m_nSelectedCI(0)
 	, m_pRULGraphHelper(nullptr)
 	, m_bRULDataLoaded(false)
+	, m_bPredDataLoaded(false)
+	, m_bCacheValid(false)
+	, m_bLoaded90(false) // [초기화]
+	, m_bLoaded95(false) // [초기화]
 {
 }
 
@@ -21,7 +25,11 @@ CTabDlg2::~CTabDlg2()
 		delete m_pRULGraphHelper;
 		m_pRULGraphHelper = nullptr;
 	}
+
+	if (!m_cachedPredGraph.IsNull())
+		m_cachedPredGraph.Destroy();
 }
+
 
 void CTabDlg2::DoDataExchange(CDataExchange* pDX)
 {
@@ -80,6 +88,30 @@ BOOL CTabDlg2::OnInitDialog()
 	return TRUE;
 }
 
+void CTabDlg2::LoadPredictionGraphData(const PredictionGraphData& data)
+{
+	// 1. 들어온 데이터의 CI를 확인하여 해당 캐시에 저장
+	if (data.ci == 90)
+	{
+		m_predData90 = data;
+		m_bLoaded90 = true;
+	}
+	else if (data.ci == 95)
+	{
+		m_predData95 = data;
+		m_bLoaded95 = true;
+	}
+
+	// 2. 현재 라디오 버튼과 들어온 데이터의 CI가 일치할 때만 화면 갱신
+	if (m_nSelectedCI == data.ci)
+	{
+		m_predGraphData = data;
+		m_bPredDataLoaded = true;
+		InvalidateCache();
+		Invalidate();
+	}
+}
+
 HBRUSH CTabDlg2::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 {
 	HBRUSH hbr = CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
@@ -110,18 +142,36 @@ void CTabDlg2::OnPaint()
 {
 	CPaintDC dc(this);
 
-	if (m_bRULDataLoaded && m_pRULGraphHelper != nullptr)
+	if (m_pRULGraphHelper != nullptr && m_bPredDataLoaded)
 	{
-		CWnd* pWndRul = GetDlgItem(IDC_PICTURE_RUL);
-		if (pWndRul != nullptr)
+		CWnd* pWndDrift = GetDlgItem(IDC_PICTURE_DRIFT);
+		if (pWndDrift != nullptr)
 		{
-			CRect rectRul;
-			pWndRul->GetWindowRect(&rectRul);
-			ScreenToClient(&rectRul);
-			m_pRULGraphHelper->DrawRULGraph(&dc, rectRul, m_rulGraphData);
+			CRect rectDrift;
+			pWndDrift->GetWindowRect(&rectDrift);
+			ScreenToClient(&rectDrift);
+
+			if (!m_bCacheValid || rectDrift != m_lastPredRect)
+			{
+				if (!m_cachedPredGraph.IsNull())
+					m_cachedPredGraph.Destroy();
+
+				m_cachedPredGraph.Create(rectDrift.Width(), rectDrift.Height(), 32);
+
+				CDC* pPredDC = CDC::FromHandle(m_cachedPredGraph.GetDC());
+				CRect tempRect(0, 0, rectDrift.Width(), rectDrift.Height());
+				m_pRULGraphHelper->DrawPredictionGraph(pPredDC, tempRect, m_predGraphData);
+				m_cachedPredGraph.ReleaseDC();
+
+				m_bCacheValid = true;
+				m_lastPredRect = rectDrift;
+			}
+
+			m_cachedPredGraph.BitBlt(dc.m_hDC, rectDrift.left, rectDrift.top);
 		}
 	}
 }
+
 
 void CTabDlg2::OnDestroy()
 {
@@ -134,17 +184,70 @@ void CTabDlg2::OnSize(UINT nType, int cx, int cy)
 
 	ArrangeControls(cx, cy);
 
+	InvalidateCache();
 	Invalidate();
 }
 
 void CTabDlg2::OnBnClickedRadio1()
 {
 	m_nSelectedCI = 90;
+	UpdateViewFromCache(); // 캐시된 데이터가 있으면 보여줌
 }
 
+// [중요 수정 2] 라디오 버튼 2 (95%) 클릭 시 - 실행 안 함, 캐시 확인만 함
 void CTabDlg2::OnBnClickedRadio2()
 {
 	m_nSelectedCI = 95;
+	UpdateViewFromCache(); // 캐시된 데이터가 있으면 보여줌
+}
+
+void CTabDlg2::UpdateViewFromCache()
+{
+	bool bFound = false;
+
+	// 1. 현재 선택된 CI에 맞는 데이터가 캐시에 있는지 확인
+	if (m_nSelectedCI == 90 && m_bLoaded90)
+	{
+		m_predGraphData = m_predData90; // 90% 데이터 복사
+		m_rulGraphData = m_rulData90;   // 90% RUL 데이터 복사
+		bFound = true;
+	}
+	else if (m_nSelectedCI == 95 && m_bLoaded95)
+	{
+		m_predGraphData = m_predData95; // 95% 데이터 복사
+		m_rulGraphData = m_rulData95;   // 95% RUL 데이터 복사
+		bFound = true;
+	}
+
+	// 2. 데이터 로드 상태 갱신
+	if (bFound)
+	{
+		m_bPredDataLoaded = true;
+		m_bRULDataLoaded = true;
+
+		// RUL 텍스트 업데이트 (소수점 한자리 등 포맷에 맞춰서)
+		CString strRul;
+		// rul_mean_list의 평균 혹은 대표값을 쓴다고 가정 (데이터 구조에 따라 조정)
+		double rulVal = 0.0;
+		if (!m_rulGraphData.rul_mean_list.empty()) rulVal = m_rulGraphData.rul_mean_list[0];
+		strRul.Format(_T("%.1f Month"), rulVal);
+		UpdateRULDisplay(strRul);
+	}
+	else
+	{
+		// 데이터가 아직 없으면(실행 안 함) 화면에서 그래프 숨김/초기화
+		// 요구사항 2번: "변화 없음"을 원하면 이 else문을 비우면 되지만, 
+		// 95%를 눌렀는데 90% 그래프가 떠있으면 헷갈리므로 보통은 클리어하거나 유지합니다.
+		// 여기서는 "실행을 눌러야 결과가 나옴"을 명확히 하기 위해 플래그를 false로 합니다.
+		// (단, 요구사항 2번에 따라 "변화 없음"을 엄격히 따르려면 이 else 블록 전체를 주석 처리하세요)
+		m_bPredDataLoaded = false;
+		m_bRULDataLoaded = false;
+		UpdateRULDisplay(_T("")); // 텍스트 클리어
+	}
+
+	// 3. 다시 그리기
+	InvalidateCache();
+	Invalidate();
 }
 
 void CTabDlg2::UpdateCISelection()
@@ -161,6 +264,11 @@ void CTabDlg2::UpdateCISelection()
 	{
 		m_nSelectedCI = 0;
 	}
+}
+
+void CTabDlg2::InvalidateCache()
+{
+	m_bCacheValid = false;
 }
 
 void CTabDlg2::InitializeUI()
@@ -317,6 +425,17 @@ void CTabDlg2::ResetRadioButtons()
 	CheckDlgButton(IDC_RADIO2, BST_UNCHECKED);
 
 	m_nSelectedCI = 0;
+
+	// 화면 데이터도 초기화
+	m_bPredDataLoaded = false;
+	m_bRULDataLoaded = false;
+
+	// (선택사항) 캐시까지 날리고 싶으면 아래 주석 해제
+	m_bLoaded90 = false;
+	m_bLoaded95 = false;
+
+	InvalidateCache();
+	Invalidate();
 }
 
 void CTabDlg2::UpdateRULDisplay(const CString& text)
@@ -342,7 +461,23 @@ void CTabDlg2::UpdateRULDisplay(const CString& text)
 
 void CTabDlg2::LoadRULGraphData(const RULGraphData& data)
 {
-	m_rulGraphData = data;
-	m_bRULDataLoaded = true;
-	Invalidate();
+	// 1. 캐시에 저장
+	if (data.ci == 90)
+	{
+		m_rulData90 = data;
+	}
+	else if (data.ci == 95)
+	{
+		m_rulData95 = data;
+	}
+
+	// 2. 현재 선택과 일치하면 갱신
+	if (m_nSelectedCI == data.ci)
+	{
+		m_rulGraphData = data;
+		m_bRULDataLoaded = true;
+		// RUL 텍스트 표시는 부모나 다른곳에서 UpdateRULDisplay를 호출한다고 가정하거나
+		// 여기서 직접 호출
+		Invalidate();
+	}
 }

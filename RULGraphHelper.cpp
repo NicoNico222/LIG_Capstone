@@ -420,3 +420,242 @@ void RULGraphHelper::DrawLegend(CDC* pDC, CRect rect, int ci)
         graphics.DrawString(items[i].text, -1, &font, textRect, &format, &textBrush);
     }
 }
+
+void RULGraphHelper::DrawPredictionGraph(CDC* pDC, CRect rect, const PredictionGraphData& data)
+{
+    if (data.samples.empty() || data.mean.size() != 6) return;
+
+    Graphics graphics(pDC->m_hDC);
+    graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+
+    SolidBrush whiteBrush(Color(255, 255, 255, 255));
+    graphics.FillRectangle(&whiteBrush, rect.left, rect.top, rect.Width(), rect.Height());
+
+    int margin = 15;
+    int graphWidth = (rect.Width() - margin * 4) / 3;
+    int graphHeight = (rect.Height() - margin * 3) / 2;
+
+    vector<CString> titles = {
+        _T("Roll Drift"), _T("Pitch Drift"), _T("Yaw Drift"),
+        _T("North Drift"), _T("East Drift"), _T("Down Drift")
+    };
+
+    for (int i = 0; i < 6; i++)
+    {
+        int row = i / 3;
+        int col = i % 3;
+
+        int x = rect.left + margin + col * (graphWidth + margin);
+        int y = rect.top + margin + row * (graphHeight + margin);
+
+        RectF graphRect((REAL)x, (REAL)y, (REAL)graphWidth, (REAL)graphHeight);
+
+        vector<double> axis_samples;
+        for (const auto& sample : data.samples)
+        {
+            if (sample.size() > i)
+                axis_samples.push_back(sample[i]);
+        }
+
+        DrawSinglePredictionGraph(graphics, graphRect, axis_samples,
+            data.mean[i], data.ci_lower[i], data.ci_upper[i],
+            data.true_values[i], data.ci, titles[i]);
+    }
+}
+
+void RULGraphHelper::DrawSinglePredictionGraph(Graphics& graphics, RectF rect,
+    const vector<double>& samples, double mean_val, double ci_lower, double ci_upper,
+    double true_val, int ci, const CString& title)
+{
+    if (samples.empty()) return;
+
+    SolidBrush bgBrush(Color(255, 245, 245, 250));
+    graphics.FillRectangle(&bgBrush, rect);
+
+    Pen borderPen(Color(255, 200, 200, 200), 1.0f);
+    graphics.DrawRectangle(&borderPen, rect);
+
+    float titleHeight = 30.0f;
+    Gdiplus::Font titleFont(L"¸¼Àº °íµñ", 10, FontStyleBold);
+    SolidBrush titleBrush(Color(255, 0, 0, 0));
+    StringFormat titleFormat;
+    titleFormat.SetAlignment(StringAlignmentCenter);
+    titleFormat.SetLineAlignment(StringAlignmentCenter);
+    RectF titleRect(rect.X, rect.Y + 5, rect.Width, titleHeight);
+    graphics.DrawString(title, -1, &titleFont, titleRect, &titleFormat, &titleBrush);
+
+    float legendHeight = 70.0f;
+    RectF plotRect(rect.X + 50, rect.Y + titleHeight + 10,
+        rect.Width - 75, rect.Height - titleHeight - legendHeight - 25);
+
+    double minVal = *std::min_element(samples.begin(), samples.end());
+    double maxVal = *std::max_element(samples.begin(), samples.end());
+    minVal = min(minVal, min(mean_val, min(ci_lower, min(ci_upper, true_val))));
+    maxVal = max(maxVal, max(mean_val, max(ci_lower, max(ci_upper, true_val))));
+    double range = maxVal - minVal;
+    minVal -= range * 0.1;
+    maxVal += range * 0.1;
+
+    Pen axisPen(Color(255, 100, 100, 100), 1.0f);
+    graphics.DrawLine(&axisPen,
+        PointF(plotRect.X, plotRect.Y + plotRect.Height),
+        PointF(plotRect.X + plotRect.Width, plotRect.Y + plotRect.Height));
+    graphics.DrawLine(&axisPen,
+        PointF(plotRect.X, plotRect.Y),
+        PointF(plotRect.X, plotRect.Y + plotRect.Height));
+
+    Pen gridPen(Color(50, 200, 200, 200), 0.5f);
+    gridPen.SetDashStyle(DashStyleDot);
+    for (int i = 1; i <= 4; i++)
+    {
+        float x = plotRect.X + plotRect.Width * i / 5.0f;
+        graphics.DrawLine(&gridPen, PointF(x, plotRect.Y), PointF(x, plotRect.Y + plotRect.Height));
+    }
+
+    double maxDensity = 2.5;
+    DrawKDE(graphics, plotRect, samples, minVal, maxVal, maxDensity);
+
+    Pen meanPen(Color(255, 255, 0, 0), 2.0f);
+    meanPen.SetDashStyle(DashStyleDash);
+    float meanX = plotRect.X + plotRect.Width * (float)((mean_val - minVal) / (maxVal - minVal));
+    graphics.DrawLine(&meanPen, PointF(meanX, plotRect.Y), PointF(meanX, plotRect.Y + plotRect.Height));
+
+    Pen ciPen(Color(255, 255, 165, 0), 1.5f);
+    ciPen.SetDashStyle(DashStyleDot);
+    float ciLowerX = plotRect.X + plotRect.Width * (float)((ci_lower - minVal) / (maxVal - minVal));
+    float ciUpperX = plotRect.X + plotRect.Width * (float)((ci_upper - minVal) / (maxVal - minVal));
+    graphics.DrawLine(&ciPen, PointF(ciLowerX, plotRect.Y), PointF(ciLowerX, plotRect.Y + plotRect.Height));
+    graphics.DrawLine(&ciPen, PointF(ciUpperX, plotRect.Y), PointF(ciUpperX, plotRect.Y + plotRect.Height));
+
+    Pen truePen(Color(255, 0, 128, 0), 2.0f);
+    float trueX = plotRect.X + plotRect.Width * (float)((true_val - minVal) / (maxVal - minVal));
+    graphics.DrawLine(&truePen, PointF(trueX, plotRect.Y), PointF(trueX, plotRect.Y + plotRect.Height));
+
+    Gdiplus::Font axisFont(L"¸¼Àº °íµñ", 8);
+    SolidBrush axisBrush(Color(255, 0, 0, 0));
+    StringFormat centerFormat;
+    centerFormat.SetAlignment(StringAlignmentCenter);
+
+    for (int i = 0; i <= 5; i++)
+    {
+        double val = minVal + (maxVal - minVal) * i / 5.0;
+        float x = plotRect.X + plotRect.Width * i / 5.0f;
+        CString label;
+        label.Format(_T("%.2f"), val);
+        RectF labelRect(x - 30, plotRect.Y + plotRect.Height + 5, 60, 20);
+        graphics.DrawString(label, -1, &axisFont, labelRect, &centerFormat, &axisBrush);
+    }
+
+    CString xlabel = _T("Drift Value");
+    RectF xlabelRect(plotRect.X, plotRect.Y + plotRect.Height + 25, plotRect.Width, 20);
+    graphics.DrawString(xlabel, -1, &axisFont, xlabelRect, &centerFormat, &axisBrush);
+
+    StringFormat leftFormat;
+    leftFormat.SetAlignment(StringAlignmentFar);
+    leftFormat.SetLineAlignment(StringAlignmentCenter);
+
+    for (int i = 0; i <= 4; i++)
+    {
+        double densityVal = i * 0.5;
+        float y = plotRect.Y + plotRect.Height - (plotRect.Height * (float)(densityVal / maxDensity));
+        CString label;
+        label.Format(_T("%.1f"), densityVal);
+        RectF labelRect(plotRect.X - 50, y - 10, 45, 20);
+        graphics.DrawString(label, -1, &axisFont, labelRect, &leftFormat, &axisBrush);
+    }
+
+    GraphicsState state = graphics.Save();
+    graphics.TranslateTransform(plotRect.X - 40, plotRect.Y + plotRect.Height / 2);
+    graphics.RotateTransform(-90);
+
+    StringFormat rotFormat;
+    rotFormat.SetAlignment(StringAlignmentCenter);
+    rotFormat.SetLineAlignment(StringAlignmentCenter);
+
+    CString ylabel = _T("Density");
+    RectF ylabelRect(-plotRect.Height / 2, -7, plotRect.Height, 15);
+    graphics.DrawString(ylabel, -1, &axisFont, ylabelRect, &rotFormat, &axisBrush);
+
+    graphics.Restore(state);
+
+    float legendY = rect.Y + rect.Height - legendHeight + 25;
+    float legendX = rect.X + 10;
+    float lineLen = 30;
+    float spacing = 13;
+
+    Gdiplus::Font legendFont(L"¸¼Àº °íµñ", 7);
+
+    Pen kdePen(Color(255, 100, 149, 237), 2.0f);
+    graphics.DrawLine(&kdePen, PointF(legendX, legendY), PointF(legendX + lineLen, legendY));
+    graphics.DrawString(_T("Predicted Distribution"), -1, &legendFont,
+        PointF(legendX + lineLen + 5, legendY - 7), &axisBrush);
+
+    legendY += spacing;
+    graphics.DrawLine(&meanPen, PointF(legendX, legendY), PointF(legendX + lineLen, legendY));
+    graphics.DrawString(_T("Mean"), -1, &legendFont,
+        PointF(legendX + lineLen + 5, legendY - 7), &axisBrush);
+
+    legendY += spacing;
+    CString ciLabel;
+    ciLabel.Format(_T("%d%% CI"), ci);
+    graphics.DrawLine(&ciPen, PointF(legendX, legendY), PointF(legendX + lineLen, legendY));
+    graphics.DrawString(ciLabel, -1, &legendFont,
+        PointF(legendX + lineLen + 5, legendY - 7), &axisBrush);
+
+    legendY += spacing;
+    graphics.DrawLine(&truePen, PointF(legendX, legendY), PointF(legendX + lineLen, legendY));
+    graphics.DrawString(_T("True Value"), -1, &legendFont,
+        PointF(legendX + lineLen + 5, legendY - 7), &axisBrush);
+}
+
+
+void RULGraphHelper::DrawKDE(Graphics& graphics, RectF rect, const vector<double>& samples,
+    double min_val, double max_val, double max_density)
+{
+    if (samples.empty()) return;
+
+    int numPoints = 500;
+
+    double mean = 0.0;
+    for (double s : samples) mean += s;
+    mean /= samples.size();
+
+    double variance = 0.0;
+    for (double s : samples) variance += (s - mean) * (s - mean);
+    variance /= samples.size();
+    double std_dev = sqrt(variance);
+
+    double bandwidth = 1.06 * std_dev * pow(samples.size(), -0.2);
+
+    vector<PointF> points;
+
+    for (int i = 0; i < numPoints; i++)
+    {
+        double x = min_val + (max_val - min_val) * i / (numPoints - 1);
+        double density = 0.0;
+
+        for (double sample : samples)
+        {
+            double diff = (x - sample) / bandwidth;
+            density += exp(-0.5 * diff * diff);
+        }
+        density /= (samples.size() * bandwidth * sqrt(2.0 * 3.14159265359));
+
+        points.push_back(PointF((float)x, (float)density));
+    }
+
+    vector<PointF> scaledPoints;
+    for (const auto& pt : points)
+    {
+        float x = rect.X + rect.Width * (pt.X - (float)min_val) / (float)(max_val - min_val);
+        float y = rect.Y + rect.Height * (1.0f - pt.Y / (float)max_density);
+        scaledPoints.push_back(PointF(x, y));
+    }
+
+    if (scaledPoints.size() > 1)
+    {
+        Pen kdePen(Color(180, 100, 149, 237), 2.0f);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+        graphics.DrawLines(&kdePen, &scaledPoints[0], (int)scaledPoints.size());
+    }
+}

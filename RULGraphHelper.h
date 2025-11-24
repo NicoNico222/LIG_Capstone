@@ -28,6 +28,16 @@ struct RULGraphData
     int ci;
 };
 
+struct PredictionGraphData
+{
+    vector<vector<double>> samples;
+    vector<double> mean;
+    vector<double> ci_lower;
+    vector<double> ci_upper;
+    vector<double> true_values;
+    int ci;
+};
+
 struct AxisInfo
 {
     double min_val;
@@ -43,7 +53,7 @@ public:
     ~RULGraphHelper();
 
     void DrawRULGraph(CDC* pDC, CRect rect, const RULGraphData& data);
-
+    void DrawPredictionGraph(CDC* pDC, CRect rect, const PredictionGraphData& data);
     void DrawLegend(CDC* pDC, CRect rect, int ci);
 
 private:
@@ -68,6 +78,18 @@ private:
         double rul_mean,
         int ci,
         const CString& title);
+
+    void DrawSinglePredictionGraph(Graphics& graphics, RectF rect,
+        const vector<double>& samples,
+        double mean_val,
+        double ci_lower,
+        double ci_upper,
+        double true_val,
+        int ci,
+        const CString& title);
+
+    void DrawKDE(Graphics& graphics, RectF rect, const vector<double>& samples,
+        double min_val, double max_val, double max_density);
 
     double NormalizeValue(double value, double min_val, double max_val);
 };

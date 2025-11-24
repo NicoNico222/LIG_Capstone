@@ -44,6 +44,8 @@ END_MESSAGE_MAP()
 CLIGCapstoneDlg::CLIGCapstoneDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_LIG_CAPSTONE_DIALOG, pParent)
 	, m_pCurrentTab(nullptr)
+	, m_bHasResult90(false)
+	, m_bHasResult95(false)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -258,6 +260,32 @@ void CLIGCapstoneDlg::OnTcnSelchangeTabPage(NMHDR* pNMHDR, LRESULT* pResult)
 
 void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 {
+	// 이미 결과가 있으면 캐시된 데이터 사용
+	if ((ci == 90 && m_bHasResult90) || (ci == 95 && m_bHasResult95))
+	{
+		if (ci == 90)
+		{
+			m_tabDlg2.UpdateRULDisplay(m_rulText90);
+			m_tabDlg2.LoadRULGraphData(m_rulData90);
+			m_tabDlg2.LoadPredictionGraphData(m_predData90);
+
+			m_tabDlg3.UpdateRULDisplay(m_rulText90);
+			m_tabDlg3.UpdateCIDisplay(ci);
+			m_tabDlg3.LoadRULGraphData(m_rulData90);
+		}
+		else
+		{
+			m_tabDlg2.UpdateRULDisplay(m_rulText95);
+			m_tabDlg2.LoadRULGraphData(m_rulData95);
+			m_tabDlg2.LoadPredictionGraphData(m_predData95);
+
+			m_tabDlg3.UpdateRULDisplay(m_rulText95);
+			m_tabDlg3.UpdateCIDisplay(ci);
+			m_tabDlg3.LoadRULGraphData(m_rulData95);
+		}
+		return;
+	}
+
 	CW2A utf8(csvPath, CP_UTF8);
 	std::string path = std::string(utf8);
 	std::string escaped;
@@ -340,6 +368,7 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 
 		bool success = false;
 		RULGraphData rulData;
+		PredictionGraphData predData;  // 새로 추가
 
 		size_t data_pos = fullResponse.find("\"data\"");
 		if (data_pos == std::string::npos)
@@ -381,6 +410,7 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 			}
 		}
 
+		// === 기존 vis_rul_graph 파싱 ===
 		size_t vis_rul_pos = fullResponse.find("\"vis_rul_graph\"", data_pos);
 		if (vis_rul_pos != std::string::npos)
 		{
@@ -526,8 +556,97 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 
 			if (rulData.threshold.size() == 6 && rulData.slope_mean.size() == 6)
 			{
-				m_tabDlg2.LoadRULGraphData(rulData);
 				success = true;
+			}
+		}
+
+		// === 새로 추가: vis_result 파싱 ===
+		size_t vis_result_pos = fullResponse.find("\"vis_result\"", data_pos);
+		if (vis_result_pos != std::string::npos)
+		{
+			predData.ci = ci;
+
+			auto parseDoubleArray = [](const std::string& json, const std::string& key, size_t start) -> std::vector<double> {
+				std::vector<double> result;
+				size_t keyPos = json.find("\"" + key + "\"", start);
+				if (keyPos == std::string::npos) return result;
+				size_t bracketStart = json.find("[", keyPos);
+				if (bracketStart == std::string::npos) return result;
+				size_t bracketEnd = json.find("]", bracketStart);
+				if (bracketEnd == std::string::npos) return result;
+				std::string content = json.substr(bracketStart + 1, bracketEnd - bracketStart - 1);
+				std::stringstream ss(content);
+				std::string token;
+				while (std::getline(ss, token, ','))
+				{
+					token.erase(0, token.find_first_not_of(" \t\n\r"));
+					token.erase(token.find_last_not_of(" \t\n\r") + 1);
+					if (!token.empty())
+					{
+						try { result.push_back(std::stod(token)); }
+						catch (...) {}
+					}
+				}
+				return result;
+				};
+
+			auto parse2DArray = [](const std::string& json, const std::string& key, size_t start) -> std::vector<std::vector<double>> {
+				std::vector<std::vector<double>> result;
+				size_t keyPos = json.find("\"" + key + "\"", start);
+				if (keyPos == std::string::npos) return result;
+				size_t outerStart = json.find("[", keyPos);
+				if (outerStart == std::string::npos) return result;
+
+				size_t pos = outerStart + 1;
+				while (pos < json.length())
+				{
+					size_t innerStart = json.find("[", pos);
+					if (innerStart == std::string::npos) break;
+					size_t innerEnd = json.find("]", innerStart);
+					if (innerEnd == std::string::npos) break;
+
+					std::string content = json.substr(innerStart + 1, innerEnd - innerStart - 1);
+					std::vector<double> inner;
+					std::stringstream ss(content);
+					std::string token;
+					while (std::getline(ss, token, ','))
+					{
+						token.erase(0, token.find_first_not_of(" \t\n\r"));
+						token.erase(token.find_last_not_of(" \t\n\r") + 1);
+						if (!token.empty())
+						{
+							try { inner.push_back(std::stod(token)); }
+							catch (...) {}
+						}
+					}
+					result.push_back(inner);
+					pos = innerEnd + 1;
+
+					if (json.find("[", pos) == std::string::npos || json.find("]", pos) < json.find("[", pos))
+						break;
+				}
+				return result;
+				};
+
+			// true_values 파싱
+			predData.true_values = parseDoubleArray(fullResponse, "true_values", vis_result_pos);
+
+			// predictions 섹션 찾기
+			size_t predictions_pos = fullResponse.find("\"predictions\"", vis_result_pos);
+			if (predictions_pos != std::string::npos)
+			{
+				// mean 파싱
+				predData.mean = parseDoubleArray(fullResponse, "mean", predictions_pos);
+
+				// CI에 따라 다른 키 사용
+				std::string ci_lower_key = (ci == 90) ? "percentile_5.0" : "percentile_2.5";
+				std::string ci_upper_key = (ci == 90) ? "percentile_95.0" : "percentile_97.5";
+
+				predData.ci_lower = parseDoubleArray(fullResponse, ci_lower_key, predictions_pos);
+				predData.ci_upper = parseDoubleArray(fullResponse, ci_upper_key, predictions_pos);
+
+				// samples 파싱 (2D array)
+				predData.samples = parse2DArray(fullResponse, "samples", predictions_pos);
 			}
 		}
 
@@ -535,21 +654,43 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 		{
 			CString resultText;
 			resultText.Format(_T("%.1f ± %.1f Month"), min_rul, range_val);
+
+			if (ci == 90)
+			{
+				m_bHasResult90 = true;
+				m_rulData90 = rulData;
+				m_predData90 = predData;
+				m_rulText90 = resultText;
+			}
+			else
+			{
+				m_bHasResult95 = true;
+				m_rulData95 = rulData;
+				m_predData95 = predData;
+				m_rulText95 = resultText;
+			}
+
 			m_tabDlg2.UpdateRULDisplay(resultText);
+			m_tabDlg2.LoadRULGraphData(rulData);
+			m_tabDlg2.LoadPredictionGraphData(predData);
+
 			m_tabDlg3.UpdateRULDisplay(resultText);
 			m_tabDlg3.UpdateCIDisplay(ci);
 			m_tabDlg3.LoadRULGraphData(rulData);
-			AfxMessageBox(_T("성공했습니다"), MB_ICONINFORMATION);
+
+			AfxMessageBox(_T("파싱 성공"), MB_ICONINFORMATION);
 		}
 		else
 		{
 			AfxMessageBox(_T("실패했습니다"), MB_ICONERROR);
 		}
 	}
-	else
-	{
-		AfxMessageBox(_T("실패했습니다"), MB_ICONERROR);
-	}
+}
+
+void CLIGCapstoneDlg::ClearResults()
+{
+	m_bHasResult90 = false;
+	m_bHasResult95 = false;
 }
 
 void CLIGCapstoneDlg::OnFileLoadCsv()
@@ -570,6 +711,9 @@ void CLIGCapstoneDlg::OnFileLoadCsv()
 			m_loadedCsvPath = filePath;
 
 			m_tabDlg2.ResetRadioButtons();
+
+			// 새 CSV 로드 시 기존 결과 초기화
+			ClearResults();
 
 			AfxMessageBox(_T("CSV 파일이 로드되었습니다.\nTab2에서 CI를 선택하고 '실행'을 눌러주세요."));
 		}

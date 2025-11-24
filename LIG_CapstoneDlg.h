@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include "TabDlg1.h"
 #include "TabDlg2.h"
-#include "TabDlg3.h"  // 추가
+#include "TabDlg3.h"
 
 class CLIGCapstoneDlg : public CDialogEx
 {
@@ -9,7 +9,6 @@ public:
 	CLIGCapstoneDlg(CWnd* pParent = nullptr);
 	CString m_loadedCsvPath;
 	void RunInference(const CString& csvPath, int ci);
-
 
 #ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_LIG_CAPSTONE_DIALOG };
@@ -23,14 +22,22 @@ protected:
 	CBrush m_brushBg;
 	CFont m_fontTab;
 
-	// Tab Control
 	CTabCtrl m_tabControl;
 
-	// Tab Dialog
 	CTabDlg1 m_tabDlg1;
 	CTabDlg2 m_tabDlg2;
-	CTabDlg3 m_tabDlg3;  // 추가
+	CTabDlg3 m_tabDlg3;
 	CDialog* m_pCurrentTab;
+
+	// 결과 캐싱
+	bool m_bHasResult90;
+	bool m_bHasResult95;
+	RULGraphData m_rulData90;
+	RULGraphData m_rulData95;
+	PredictionGraphData m_predData90;
+	PredictionGraphData m_predData95;
+	CString m_rulText90;
+	CString m_rulText95;
 
 	virtual BOOL OnInitDialog();
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
@@ -46,4 +53,5 @@ protected:
 private:
 	void InitializeTabControl();
 	void ShowTab(int nTab);
+	void ClearResults();
 };
