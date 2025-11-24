@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <windows.h>
 #include <gdiplus.h>
+#include <cmath>
 
 using namespace Gdiplus;
 using namespace std;
@@ -27,6 +28,14 @@ struct RULGraphData
     int ci;
 };
 
+struct AxisInfo
+{
+    double min_val;
+    double max_val;
+    double step;
+    int tick_count;
+};
+
 class RULGraphHelper
 {
 public:
@@ -37,6 +46,8 @@ public:
 
 private:
     ULONG_PTR m_gdiplusToken;
+
+    AxisInfo CalculateNiceAxis(double min_val, double max_val, int max_ticks);
 
     void DrawSingleRULGraph(Graphics& graphics, RectF rect,
         double threshold_val,

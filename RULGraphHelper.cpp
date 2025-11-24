@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "RULGraphHelper.h"
+#include <cmath>
 
 RULGraphHelper::RULGraphHelper()
 {
@@ -17,6 +18,52 @@ double RULGraphHelper::NormalizeValue(double value, double min_val, double max_v
     if (max_val - min_val < 1e-8)
         return 0.0;
     return 2.0 * (value - min_val) / (max_val - min_val) - 1.0;
+}
+
+AxisInfo RULGraphHelper::CalculateNiceAxis(double min_val, double max_val, int max_ticks)
+{
+    double range = max_val - min_val;
+    if (range <= 0) range = 1.0;
+
+    // 1. 대략적인 간격 계산
+    double rough_step = range / (max_ticks - 1);
+
+    // 2. 10의 거듭제곱 단위로 정규화 (예: 250 -> 2.5)
+    double exponent = floor(log10(rough_step));
+    double fraction = rough_step / pow(10.0, exponent);
+    double nice_fraction;
+
+    // 3. 깔끔한 단위(1, 2, 5, 10) 선택 로직
+    // 파이썬처럼 촘촘하게 보이기 위해 기준을 조금 더 낮게 잡음
+    if (fraction < 1.5) nice_fraction = 1.0;
+    else if (fraction < 3.0) nice_fraction = 2.0;
+    else if (fraction < 7.0) nice_fraction = 5.0;
+    else nice_fraction = 10.0;
+
+    double nice_step = nice_fraction * pow(10.0, exponent);
+
+    // 4. 축 범위 재조정
+    double nice_min = floor(min_val / nice_step) * nice_step;
+    double nice_max = ceil(max_val / nice_step) * nice_step;
+    int tick_count = (int)((nice_max - nice_min) / nice_step) + 1;
+
+    // [중요] 눈금이 너무 적으면(예: 0, 1000, 2000, 3000 -> 4개), 
+    // 간격을 강제로 반으로 줄여서(0, 500, 1000...) 최소 5개 이상 확보
+    if (tick_count < 5)
+    {
+        nice_step /= 2.0;
+        nice_min = floor(min_val / nice_step) * nice_step;
+        nice_max = ceil(max_val / nice_step) * nice_step;
+        tick_count = (int)((nice_max - nice_min) / nice_step) + 1;
+    }
+
+    AxisInfo info;
+    info.min_val = nice_min;
+    info.max_val = nice_max;
+    info.step = nice_step;
+    info.tick_count = tick_count;
+
+    return info;
 }
 
 void RULGraphHelper::DrawRULGraph(CDC* pDC, CRect rect, const RULGraphData& data)
@@ -111,8 +158,23 @@ void RULGraphHelper::DrawSingleRULGraph(
     titleFormat.SetLineAlignment(StringAlignmentCenter);
     graphics.DrawString(fullTitle, -1, &titleFont, titleRect, &titleFormat, &textBrush);
 
-    RectF graphRect(rect.X + 50, rect.Y + titleHeight + 5,
-        rect.Width - 65, rect.Height - titleHeight - 35);
+    float leftMargin = 45.0f;
+    float bottomMargin = 25.0f;
+    RectF graphRect(rect.X + leftMargin, rect.Y + titleHeight + 5,
+        rect.Width - leftMargin - 15, rect.Height - titleHeight - bottomMargin - 5);
+
+    double raw_x_min = *min_element(x_line.begin(), x_line.end());
+    double raw_x_max = *max_element(x_line.begin(), x_line.end());
+
+    if (input_x < raw_x_min) raw_x_min = input_x;
+    if (input_x > raw_x_max) raw_x_max = input_x;
+    if (target_x > raw_x_max) raw_x_max = target_x;
+    if (rul_mean > raw_x_max) raw_x_max = rul_mean;
+
+    // [수정] max_ticks를 5 -> 10으로 늘림 (더 촘촘하게 요청)
+    AxisInfo xAxis = CalculateNiceAxis(raw_x_min, raw_x_max, 8);
+    double x_min = xAxis.min_val;
+    double x_max = xAxis.max_val;
 
     double thr_raw = (slope_val > 0) ? threshold_val : -threshold_val;
 
@@ -136,45 +198,74 @@ void RULGraphHelper::DrawSingleRULGraph(
     double y_min = -1.0;
     double y_max = 1.0;
 
-    double x_min = *min_element(x_line.begin(), x_line.end());
-    double x_max = *max_element(x_line.begin(), x_line.end());
-    if (rul_mean > x_max) x_max = rul_mean;
-
     Pen axisPen(Color(255, 0, 0, 0), 1.0f);
-    graphics.DrawLine(&axisPen,
-        PointF(graphRect.X, graphRect.Y),
-        PointF(graphRect.X, graphRect.Y + graphRect.Height));
-    graphics.DrawLine(&axisPen,
-        PointF(graphRect.X, graphRect.Y + graphRect.Height),
-        PointF(graphRect.X + graphRect.Width, graphRect.Y + graphRect.Height));
+    graphics.DrawLine(&axisPen, PointF(graphRect.X, graphRect.Y), PointF(graphRect.X, graphRect.Y + graphRect.Height));
+    graphics.DrawLine(&axisPen, PointF(graphRect.X, graphRect.Y + graphRect.Height), PointF(graphRect.X + graphRect.Width, graphRect.Y + graphRect.Height));
 
     Pen gridPen(Color(100, 200, 200, 200), 0.5f);
     gridPen.SetDashStyle(DashStyleDot);
-    for (int i = 1; i <= 4; i++)
+
+    Gdiplus::Font axisFont(L"맑은 고딕", 8);
+    StringFormat yFormat;
+    yFormat.SetAlignment(StringAlignmentFar);
+    yFormat.SetLineAlignment(StringAlignmentCenter);
+
+    for (int i = 0; i <= 5; i++)
     {
-        float y = graphRect.Y + graphRect.Height * i / 5.0f;
-        graphics.DrawLine(&gridPen, PointF(graphRect.X, y),
-            PointF(graphRect.X + graphRect.Width, y));
+        float yPos = graphRect.Y + graphRect.Height * i / 5.0f;
+        double value = 1.0 - (2.0 * i / 5.0);
+
+        graphics.DrawLine(&gridPen, PointF(graphRect.X, yPos), PointF(graphRect.X + graphRect.Width, yPos));
+
+        CString label;
+        label.Format(_T("%.1f"), value);
+        RectF labelRect(graphRect.X - 40, yPos - 8, 35, 16);
+        graphics.DrawString(label, -1, &axisFont, labelRect, &yFormat, &textBrush);
     }
+
+    StringFormat xFormat;
+    xFormat.SetAlignment(StringAlignmentCenter);
+    xFormat.SetLineAlignment(StringAlignmentNear);
+
+    for (int i = 0; i < xAxis.tick_count; i++)
+    {
+        double currentVal = xAxis.min_val + i * xAxis.step;
+        float x_norm_ratio = (float)((currentVal - x_min) / (x_max - x_min));
+        float xPos = graphRect.X + x_norm_ratio * graphRect.Width;
+
+        if (i > 0)
+            graphics.DrawLine(&gridPen, PointF(xPos, graphRect.Y), PointF(xPos, graphRect.Y + graphRect.Height));
+
+        CString label;
+        if (abs(currentVal - (int)currentVal) < 1e-5)
+            label.Format(_T("%d"), (int)currentVal);
+        else
+            label.Format(_T("%.1f"), currentVal);
+
+        RectF labelRect(xPos - 25, graphRect.Y + graphRect.Height + 5, 50, 20);
+        graphics.DrawString(label, -1, &axisFont, labelRect, &xFormat, &textBrush);
+    }
+
+    auto GetXPos = [&](double val) -> float {
+        return graphRect.X + (float)((val - x_min) / (x_max - x_min)) * graphRect.Width;
+        };
+
+    auto GetYPos = [&](double val_norm_y) -> float {
+        return graphRect.Y + graphRect.Height * (1.0f - (float)((val_norm_y - y_min) / (y_max - y_min)));
+        };
 
     SolidBrush ciBrush(Color(80, 174, 199, 232));
     vector<PointF> ciPoints;
     for (size_t i = 0; i < x_line.size(); i++)
     {
-        float x_norm = (float)((x_line[i] - x_min) / (x_max - x_min));
-        double y0_normalized = normalize(y_line_0[i]);
-        float y0_val = (float)((y0_normalized - y_min) / (y_max - y_min));
-        float x = graphRect.X + x_norm * graphRect.Width;
-        float y = graphRect.Y + graphRect.Height * (1.0f - y0_val);
+        float x = GetXPos(x_line[i]);
+        float y = GetYPos(normalize(y_line_0[i]));
         ciPoints.push_back(PointF(x, y));
     }
     for (int i = (int)x_line.size() - 1; i >= 0; i--)
     {
-        float x_norm = (float)((x_line[i] - x_min) / (x_max - x_min));
-        double y1_normalized = normalize(y_line_1[i]);
-        float y1_val = (float)((y1_normalized - y_min) / (y_max - y_min));
-        float x = graphRect.X + x_norm * graphRect.Width;
-        float y = graphRect.Y + graphRect.Height * (1.0f - y1_val);
+        float x = GetXPos(x_line[i]);
+        float y = GetYPos(normalize(y_line_1[i]));
         ciPoints.push_back(PointF(x, y));
     }
     if (ciPoints.size() > 2)
@@ -184,103 +275,50 @@ void RULGraphHelper::DrawSingleRULGraph(
     vector<PointF> linePoints;
     for (size_t i = 0; i < x_line.size(); i++)
     {
-        float x_norm = (float)((x_line[i] - x_min) / (x_max - x_min));
-        double y_normalized = normalize(y_line_mean[i]);
-        float y_val = (float)((y_normalized - y_min) / (y_max - y_min));
-        float x = graphRect.X + x_norm * graphRect.Width;
-        float y = graphRect.Y + graphRect.Height * (1.0f - y_val);
+        float x = GetXPos(x_line[i]);
+        float y = GetYPos(normalize(y_line_mean[i]));
         linePoints.push_back(PointF(x, y));
     }
     if (linePoints.size() > 1)
         graphics.DrawLines(&linePen, &linePoints[0], (int)linePoints.size());
 
-    float input_x_norm = (float)((input_x - x_min) / (x_max - x_min));
-    double input_y_normalized = normalize(input_y_val);
-    float input_y_norm = (float)((input_y_normalized - y_min) / (y_max - y_min));
-    float input_px = graphRect.X + input_x_norm * graphRect.Width;
-    float input_py = graphRect.Y + graphRect.Height * (1.0f - input_y_norm);
     SolidBrush inputBrush(Color(255, 255, 127, 14));
-    graphics.FillEllipse(&inputBrush, (REAL)(input_px - 5), (REAL)(input_py - 5), (REAL)10, (REAL)10);
+    graphics.FillEllipse(&inputBrush, GetXPos(input_x) - 4, GetYPos(normalize(input_y_val)) - 4, 8.0f, 8.0f);
 
-    float target_x_norm = (float)((target_x - x_min) / (x_max - x_min));
-    double target_y_normalized = normalize(target_y_val);
-    float target_y_norm = (float)((target_y_normalized - y_min) / (y_max - y_min));
-    float target_px = graphRect.X + target_x_norm * graphRect.Width;
-    float target_py = graphRect.Y + graphRect.Height * (1.0f - target_y_norm);
     SolidBrush targetBrush(Color(255, 255, 0, 0));
-    graphics.FillEllipse(&targetBrush, (REAL)(target_px - 5), (REAL)(target_py - 5), (REAL)10, (REAL)10);
+    graphics.FillEllipse(&targetBrush, GetXPos(target_x) - 4, GetYPos(normalize(target_y_val)) - 4, 8.0f, 8.0f);
 
-    float gap_x_norm = (float)(((gap_mean + p2_x_mean) - x_min) / (x_max - x_min));
-    double gap_y_normalized = normalize(gap_mean_y_val);
-    float gap_y_norm = (float)((gap_y_normalized - y_min) / (y_max - y_min));
-    float gap_px = graphRect.X + gap_x_norm * graphRect.Width;
-    float gap_py = graphRect.Y + graphRect.Height * (1.0f - gap_y_norm);
     SolidBrush gapBrush(Color(255, 44, 160, 44));
-    graphics.FillEllipse(&gapBrush, (REAL)(gap_px - 5), (REAL)(gap_py - 5), (REAL)10, (REAL)10);
+    float gap_x_pos = (float)(gap_mean + p2_x_mean);
+    graphics.FillEllipse(&gapBrush, GetXPos(gap_x_pos) - 4, GetYPos(normalize(gap_mean_y_val)) - 4, 8.0f, 8.0f);
 
     double thr_normalized = normalize(thr_raw);
-    float thr_norm = (float)((thr_normalized - y_min) / (y_max - y_min));
-    float thr_y = graphRect.Y + graphRect.Height * (1.0f - thr_norm);
+    float thr_y = GetYPos(thr_normalized);
     Pen thresholdPen(Color(255, 255, 0, 0), 1.5f);
     thresholdPen.SetDashStyle(DashStyleDash);
-    graphics.DrawLine(&thresholdPen, PointF(graphRect.X, thr_y),
-        PointF(graphRect.X + graphRect.Width, thr_y));
+    graphics.DrawLine(&thresholdPen, PointF(graphRect.X, thr_y), PointF(graphRect.X + graphRect.Width, thr_y));
 
-    float rul_x_norm = (float)((rul_mean - x_min) / (x_max - x_min));
-    float rul_x = graphRect.X + rul_x_norm * graphRect.Width;
+    float rul_x = GetXPos(rul_mean);
     Pen rulPen(Color(200, 0, 0, 255), 1.5f);
     rulPen.SetDashStyle(DashStyleDot);
-    graphics.DrawLine(&rulPen, PointF(rul_x, graphRect.Y),
-        PointF(rul_x, graphRect.Y + graphRect.Height));
 
-    SolidBrush rulBrush(Color(255, 0, 0, 255));
-    graphics.FillEllipse(&rulBrush, (REAL)(rul_x - 5), (REAL)(thr_y - 5), (REAL)10, (REAL)10);
-
-    CString rulText;
-    rulText.Format(_T("%.1f Month"), rul_mean);
-    Gdiplus::Font rulFont(L"맑은 고딕", 10, FontStyleBold);
-    SolidBrush rulTextBrush(Color(255, 0, 0, 255));
-    RectF rulTextRect(rul_x + 8, thr_y - 18, 100, 25);
-    graphics.DrawString(rulText, -1, &rulFont, rulTextRect, NULL, &rulTextBrush);
-
-    Gdiplus::Font axisFont(L"맑은 고딕", 7);
-    StringFormat format;
-    format.SetAlignment(StringAlignmentFar);
-
-    for (int i = 0; i <= 5; i++)
+    if (rul_mean >= x_min && rul_mean <= x_max)
     {
-        float yPos = graphRect.Y + graphRect.Height * i / 5.0f;
-        double value = 1.0 - (2.0 * i / 5.0);
+        graphics.DrawLine(&rulPen, PointF(rul_x, graphRect.Y), PointF(rul_x, graphRect.Y + graphRect.Height));
 
-        CString label;
-        label.Format(_T("%.1f"), value);
+        SolidBrush rulBrush(Color(255, 0, 0, 255));
+        graphics.FillEllipse(&rulBrush, rul_x - 4, thr_y - 4, 8.0f, 8.0f);
 
-        RectF labelRect(graphRect.X - 45, yPos - 8, 40, 16);
-        graphics.DrawString(label, -1, &axisFont, labelRect, &format, &textBrush);
-    }
+        CString rulText;
+        rulText.Format(_T("%.1f Month"), rul_mean);
+        Gdiplus::Font rulFont(L"맑은 고딕", 9, FontStyleBold);
+        SolidBrush rulTextBrush(Color(255, 0, 0, 255));
 
-    format.SetAlignment(StringAlignmentCenter);
+        float textX = rul_x + 8;
+        if (textX + 80 > graphRect.X + graphRect.Width)
+            textX = rul_x - 88;
 
-    int num_ticks = 5;
-    double x_range = x_max - x_min;
-    double x_step = x_range / num_ticks;
-
-    for (int i = 0; i <= num_ticks; i++)
-    {
-        float xPos = graphRect.X + graphRect.Width * i / (float)num_ticks;
-        double value = x_min + x_step * i;
-
-        CString label;
-        if (value >= 1000)
-            label.Format(_T("%.0f"), value);
-        else if (value >= 100)
-            label.Format(_T("%.0f"), value);
-        else if (value >= 10)
-            label.Format(_T("%.0f"), value);
-        else
-            label.Format(_T("%.1f"), value);
-
-        RectF labelRect(xPos - 25, graphRect.Y + graphRect.Height + 5, 50, 16);
-        graphics.DrawString(label, -1, &axisFont, labelRect, &format, &textBrush);
+        RectF rulTextRect(textX, thr_y - 18, 90, 25);
+        graphics.DrawString(rulText, -1, &rulFont, rulTextRect, NULL, &rulTextBrush);
     }
 }
