@@ -678,11 +678,11 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 			m_tabDlg3.UpdateCIDisplay(ci);
 			m_tabDlg3.LoadRULGraphData(rulData);
 
-			AfxMessageBox(_T("파싱 성공"), MB_ICONINFORMATION);
+			AfxMessageBox(_T("실행에 성공했습니다."), MB_ICONINFORMATION);
 		}
 		else
 		{
-			AfxMessageBox(_T("실패했습니다"), MB_ICONERROR);
+			AfxMessageBox(_T("실행에 실패했습니다. 프로그램을 다시 켜주세요."), MB_ICONERROR);
 		}
 	}
 }
@@ -715,7 +715,7 @@ void CLIGCapstoneDlg::OnFileLoadCsv()
 			// 새 CSV 로드 시 기존 결과 초기화
 			ClearResults();
 
-			AfxMessageBox(_T("CSV 파일이 로드되었습니다.\nTab2에서 CI를 선택하고 '실행'을 눌러주세요."));
+			AfxMessageBox(_T("CSV 파일이 로드되었습니다."));
 		}
 		else
 		{

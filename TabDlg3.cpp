@@ -195,7 +195,7 @@ void CTabDlg3::ArrangeControls(int cx, int cy)
 	int headerHeight = 110;
 
 	// 1. 범례 배치 (고정 위치)
-	int legendWidth = 320;
+	int legendWidth = 360;
 	if (pLegend != NULL)
 	{
 		pLegend->MoveWindow(legendLeftMargin, topMargin, legendWidth, headerHeight);
@@ -207,7 +207,7 @@ void CTabDlg3::ArrangeControls(int cx, int cy)
 	int boxWidthCI = 250; // Tab2의 RUL Predict 박스 너비 사용
 
 	// CI 박스 위치 (Tab2의 CI/Predict 박스 위치 계산 공식 사용)
-	int ciGroupX = leftX + (halfWidth - boxWidthCI) / 2;
+	int ciGroupX = leftX + (halfWidth - boxWidthCI) / 2 + 100;
 
 	int currentY = topMargin;
 
