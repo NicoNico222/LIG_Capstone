@@ -122,6 +122,17 @@ void CTabDlg3::OnPaint()
 
 			m_cachedRulGraph.BitBlt(dc.m_hDC, rectRul.left, rectRul.top);
 		}
+
+		CWnd* pWndLegend = GetDlgItem(IDC_STATIC_LEGEND);
+		if (pWndLegend != nullptr)
+		{
+			CRect rectLegend;
+			pWndLegend->GetWindowRect(&rectLegend);
+			ScreenToClient(&rectLegend);
+
+			m_pRULGraphHelper->DrawLegend(&dc, rectLegend, m_rulGraphData.ci);
+
+		}
 	}
 }
 
@@ -158,68 +169,89 @@ void CTabDlg3::ArrangeControls(int cx, int cy)
 {
 	if (cx <= 0 || cy <= 0) return;
 
+	CWnd* pLegend = GetDlgItem(IDC_STATIC_LEGEND);
+
 	CWnd* pRulCI = GetDlgItem(IDC_STATIC_RUL_CI);
 	CWnd* pCIBox = GetDlgItem(IDC_STATIC_RUL_CI_BOX);
+
 	CWnd* pRulMargin = GetDlgItem(IDC_STATIC_RUL_MARGIN2);
 	CWnd* pMonth = GetDlgItem(IDC_STATIC_MONTH2);
+
 	CWnd* pRulText = GetDlgItem(IDC_STATIC_RUL_TEXT);
 	CWnd* pPictureRul = GetDlgItem(IDC_PICTURE_RUL);
 
+	// --- Tab2 동기화 변수 ---
 	int margin = 20;
 	int topMargin = 10;
 	int titleHeight = 30;
 	int groupHeight = 70;
 	int spacingSmall = 5;
 
-	int halfWidth = (cx - margin * 3) / 2;
+	// 박스 크기 동기화 (Tab2의 marginBoxWidth, titleHeight, groupHeight 사용)
+	int infoBoxWidth = 300;
 
+	// --- 레이아웃 치수 설정 ---
+	int legendLeftMargin = 40;
+	int headerHeight = 110;
+
+	// 1. 범례 배치 (고정 위치)
+	int legendWidth = 320;
+	if (pLegend != NULL)
+	{
+		pLegend->MoveWindow(legendLeftMargin, topMargin, legendWidth, headerHeight);
+	}
+
+	// 2. CI 컨트롤 배치 (화면 왼쪽 1/2 중앙에 위치)
+	int halfWidth = (cx - margin * 3) / 2;
 	int leftX = margin;
+	int boxWidthCI = 250; // Tab2의 RUL Predict 박스 너비 사용
+
+	// CI 박스 위치 (Tab2의 CI/Predict 박스 위치 계산 공식 사용)
+	int ciGroupX = leftX + (halfWidth - boxWidthCI) / 2;
+
 	int currentY = topMargin;
 
-	int boxWidth = 250;
-	int boxCenterX = leftX + (halfWidth - boxWidth) / 2;
-
 	if (pRulCI != NULL)
-	{
-		pRulCI->MoveWindow(boxCenterX, currentY, boxWidth, titleHeight);
-		currentY += titleHeight + spacingSmall;
-	}
+		pRulCI->MoveWindow(ciGroupX, currentY, boxWidthCI, titleHeight);
 
+	currentY += titleHeight + spacingSmall;
 	if (pCIBox != NULL)
-	{
-		pCIBox->MoveWindow(boxCenterX, currentY, boxWidth, groupHeight);
-	}
+		pCIBox->MoveWindow(ciGroupX, currentY, boxWidthCI, groupHeight);
 
+	// 3. RUL 컨트롤 배치 (Tab2와 동일하게 우측 1/2 중앙에 위치)
 	int rightX = leftX + halfWidth + margin;
 	currentY = topMargin;
 
-	int marginBoxWidth = 300;
-	int marginCenterX = rightX + (halfWidth - marginBoxWidth) / 2;
+	// RUL 박스 위치 (Tab2의 RUL Margin 박스 위치 계산 공식 사용)
+	int rulGroupX = rightX + (halfWidth - infoBoxWidth) / 2;
 
 	if (pRulMargin != NULL)
-	{
-		pRulMargin->MoveWindow(marginCenterX, currentY, marginBoxWidth, titleHeight);
-		currentY += titleHeight + spacingSmall;
-	}
-
-	if (pMonth != NULL)
-	{
-		pMonth->MoveWindow(marginCenterX, currentY, marginBoxWidth, groupHeight);
-	}
-
-	int bottomY = topMargin + titleHeight + spacingSmall + groupHeight + spacingSmall;
-	int imageHeight = cy - bottomY - margin - titleHeight - spacingSmall;
-
-	currentY = bottomY;
-	if (pRulText != NULL)
-	{
-		pRulText->MoveWindow(leftX, currentY, cx - margin * 2, titleHeight);
-	}
+		pRulMargin->MoveWindow(rulGroupX, currentY, infoBoxWidth, titleHeight);
 
 	currentY += titleHeight + spacingSmall;
+	if (pMonth != NULL)
+		pMonth->MoveWindow(rulGroupX, currentY, infoBoxWidth, groupHeight);
+
+
+	// --- 하단 그래프 영역 ---
+	int bottomY = topMargin + titleHeight + spacingSmall + groupHeight + spacingSmall;
+	int graphStartY = bottomY;
+
+	int graphTitleHeight = 30;
+
+	// 4. "RUL 예측 결과" 텍스트 (좌우 여백 margin 적용)
+	if (pRulText != NULL)
+	{
+		pRulText->MoveWindow(margin, graphStartY, cx - margin * 2, graphTitleHeight);
+	}
+
+	// 5. 그래프 그림 영역
+	int pictureY = graphStartY + graphTitleHeight + 10;
+	int pictureHeight = cy - pictureY - margin;
+
 	if (pPictureRul != NULL)
 	{
-		pPictureRul->MoveWindow(leftX, currentY, cx - margin * 2, imageHeight);
+		pPictureRul->MoveWindow(margin, pictureY, cx - margin * 2, pictureHeight);
 	}
 }
 

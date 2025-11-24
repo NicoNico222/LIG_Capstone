@@ -44,6 +44,8 @@ public:
 
     void DrawRULGraph(CDC* pDC, CRect rect, const RULGraphData& data);
 
+    void DrawLegend(CDC* pDC, CRect rect, int ci);
+
 private:
     ULONG_PTR m_gdiplusToken;
 

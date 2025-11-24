@@ -322,3 +322,101 @@ void RULGraphHelper::DrawSingleRULGraph(
         graphics.DrawString(rulText, -1, &rulFont, rulTextRect, NULL, &rulTextBrush);
     }
 }
+
+void RULGraphHelper::DrawLegend(CDC* pDC, CRect rect, int ci)
+{
+    Graphics graphics(pDC->m_hDC);
+    graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+    graphics.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
+
+    // 1. 배경 및 테두리
+    SolidBrush bgBrush(Color(255, 255, 255, 255));
+    graphics.FillRectangle(&bgBrush, rect.left, rect.top, rect.Width(), rect.Height());
+
+    Pen borderPen(Color(255, 200, 200, 200), 1.0f);
+    graphics.DrawRectangle(&borderPen, rect.left, rect.top, rect.Width() - 1, rect.Height() - 1);
+
+    // 2. 폰트 설정
+    Gdiplus::Font font(L"맑은 고딕", 8, FontStyleRegular); // 글자 크기 약간 줄임
+    SolidBrush textBrush(Color(255, 0, 0, 0));
+    StringFormat format;
+    format.SetAlignment(StringAlignmentNear);
+    format.SetLineAlignment(StringAlignmentCenter);
+
+    // 3. 항목 정의
+    struct LegendItem {
+        int type; // 0:Line, 1:Dot, 2:Rect, 3:Dash
+        Color color;
+        CString text;
+    };
+
+    CString ciText;
+    ciText.Format(_T("%d%% CI Region"), ci);
+
+    LegendItem items[] = {
+        // 왼쪽 열 (4개)
+        { 0, Color(255, 31, 119, 180), _T("Regression Line") }, // 이름 약간 줄임
+        { 1, Color(255, 31, 119, 180), _T("Predictive Mean") },
+        { 1, Color(255, 255, 127, 14), _T("Input") },
+        { 1, Color(255, 255, 0, 0),    _T("Target") },
+        // 오른쪽 열 (3개)
+        { 2, Color(80, 174, 199, 232), ciText },
+        { 3, Color(255, 255, 0, 0),    _T("Threshold") },
+        { 1, Color(255, 0, 0, 255),    _T("Faulty Point") }
+    };
+
+    // 4. 2단 레이아웃 배치 계산
+    float startX = (float)rect.left + 10.0f;
+    float startY = (float)rect.top + 10.0f;
+    float lineHeight = 20.0f;
+    float iconWidth = 15.0f;
+
+    // 두 번째 열이 시작될 X 위치 (전체 너비의 약 55% 지점)
+    float col2Offset = (float)rect.Width() * 0.55f;
+
+    for (int i = 0; i < 7; i++)
+    {
+        // 열(Column)과 행(Row) 결정
+        // 0~3번 인덱스: 0열 / 4~6번 인덱스: 1열
+        int col = (i < 4) ? 0 : 1;
+        int row = (i < 4) ? i : (i - 4);
+
+        float currentX = startX + (col * col2Offset);
+        float currentY = startY + (row * lineHeight);
+
+        // 텍스트 영역
+        RectF textRect(currentX + iconWidth + 5, currentY - 10, col2Offset - iconWidth - 5, 20);
+
+        // 아이콘 좌표
+        float iconMidY = currentY;
+        float iconLeft = currentX;
+        float iconRight = currentX + iconWidth;
+
+        // 타입별 그리기
+        if (items[i].type == 0) // 실선
+        {
+            Pen linePen(items[i].color, 2.0f);
+            graphics.DrawLine(&linePen, PointF(iconLeft, iconMidY), PointF(iconRight, iconMidY));
+        }
+        else if (items[i].type == 1) // 점
+        {
+            SolidBrush dotBrush(items[i].color);
+            float dotSize = 6.0f;
+            graphics.FillEllipse(&dotBrush, (iconLeft + iconRight) / 2 - dotSize / 2, iconMidY - dotSize / 2, dotSize, dotSize);
+        }
+        else if (items[i].type == 2) // CI 사각형
+        {
+            SolidBrush rectBrush(items[i].color);
+            float rectH = 8.0f;
+            graphics.FillRectangle(&rectBrush, iconLeft, iconMidY - rectH / 2, iconWidth, rectH);
+        }
+        else if (items[i].type == 3) // 점선
+        {
+            Pen dashPen(items[i].color, 1.5f);
+            dashPen.SetDashStyle(DashStyleDash);
+            graphics.DrawLine(&dashPen, PointF(iconLeft, iconMidY), PointF(iconRight, iconMidY));
+        }
+
+        graphics.DrawString(items[i].text, -1, &font, textRect, &format, &textBrush);
+    }
+}
