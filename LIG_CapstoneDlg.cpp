@@ -222,13 +222,13 @@ void CLIGCapstoneDlg::InitializeTabControl()
 	TCITEM item;
 	item.mask = TCIF_TEXT;
 
-	item.pszText = _T("Page1");
+	item.pszText = _T("시계열 데이터 시각화");
 	m_tabControl.InsertItem(0, &item);
 
-	item.pszText = _T("Page2");
+	item.pszText = _T("B시점 항법 드리프트 예측");
 	m_tabControl.InsertItem(1, &item);
 
-	item.pszText = _T("Page3");
+	item.pszText = _T("RUL 예측 및 시각화");
 	m_tabControl.InsertItem(2, &item);
 }
 

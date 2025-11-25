@@ -34,6 +34,7 @@ private:
 	CFont m_fontGroupTitle;
 	CFont m_fontRadio;
 	CFont m_fontMonth;
+	CFont m_fontLoading;
 
 	CString m_strRul90; // 90%일 때 표시할 텍스트 저장
 	CString m_strRul95; // 95%일 때 표시할 텍스트 저장
@@ -64,6 +65,9 @@ private:
 	CImage m_cachedPredGraph;
 	bool m_bCacheValid;
 	CRect m_lastPredRect;
+
+	bool m_bLoading;
+	bool m_bShowLoadingText;
 
 	void ArrangeControls(int cx, int cy);
 	void InitializeUI();

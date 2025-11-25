@@ -15,6 +15,7 @@ CTabDlg2::CTabDlg2(CWnd* pParent /*=nullptr*/)
 	, m_bCacheValid(false)
 	, m_bLoaded90(false) // [초기화]
 	, m_bLoaded95(false) // [초기화]
+	, m_bShowLoadingText(false) // [추가]
 {
 }
 
@@ -56,6 +57,7 @@ BOOL CTabDlg2::OnInitDialog()
 	m_fontGroupTitle.CreatePointFont(140, _T("맑은 고딕"));
 	m_fontRadio.CreatePointFont(110, _T("맑은 고딕"));
 	m_fontMonth.CreatePointFont(230, _T("맑은 고딕"));
+	m_fontLoading.CreatePointFont(240, _T("맑은 고딕"));
 
 	m_pRULGraphHelper = new RULGraphHelper();
 
@@ -66,6 +68,14 @@ BOOL CTabDlg2::OnInitDialog()
 	{
 		pMonth->ModifyStyle(0, SS_CENTER | SS_CENTERIMAGE);
 		pMonth->SetFont(&m_fontMonth);
+	}
+
+	// [추가] 로딩 텍스트 컨트롤 설정
+	CWnd* pLoading = GetDlgItem(IDC_STATIC_LOADING);
+	if (pLoading != NULL)
+	{
+		pLoading->SetFont(&m_fontLoading);
+		pLoading->ShowWindow(SW_HIDE); // 처음엔 숨김
 	}
 
 	CRect clientRect;
@@ -90,7 +100,6 @@ BOOL CTabDlg2::OnInitDialog()
 
 void CTabDlg2::LoadPredictionGraphData(const PredictionGraphData& data)
 {
-	// 1. 들어온 데이터의 CI를 확인하여 해당 캐시에 저장
 	if (data.ci == 90)
 	{
 		m_predData90 = data;
@@ -102,11 +111,18 @@ void CTabDlg2::LoadPredictionGraphData(const PredictionGraphData& data)
 		m_bLoaded95 = true;
 	}
 
-	// 2. 현재 라디오 버튼과 들어온 데이터의 CI가 일치할 때만 화면 갱신
 	if (m_nSelectedCI == data.ci)
 	{
 		m_predGraphData = data;
 		m_bPredDataLoaded = true;
+
+		// [수정] 로딩 텍스트 숨기기
+		CWnd* pLoading = GetDlgItem(IDC_STATIC_LOADING);
+		if (pLoading != NULL)
+		{
+			pLoading->ShowWindow(SW_HIDE);
+		}
+
 		InvalidateCache();
 		Invalidate();
 	}
@@ -171,6 +187,7 @@ void CTabDlg2::OnPaint()
 		}
 	}
 }
+
 
 
 void CTabDlg2::OnDestroy()
@@ -322,6 +339,7 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 	CWnd* pBtnRun = GetDlgItem(IDC_BTN_RUN);
 	CWnd* pDriftText = GetDlgItem(IDC_STATIC_DRIFT_TEXT);
 	CWnd* pPictureDrift = GetDlgItem(IDC_PICTURE_DRIFT);
+	CWnd* pLoading = GetDlgItem(IDC_STATIC_LOADING); // [추가]
 
 	int margin = 20;
 	int topMargin = 10;
@@ -336,7 +354,7 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 
 	int boxWidth = 250;
 	int btnWidth = 100;
-	int boxCenterX = leftX + (halfWidth - boxWidth) / 2;
+	int boxCenterX = (cx - boxWidth) / 2;
 
 	if (pRulPredict != NULL)
 	{
@@ -350,7 +368,7 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 
 		if (pRadio1 != NULL && pRadio2 != NULL)
 		{
-			int radioWidth = 160;
+			int radioWidth = 80;
 			int radioHeight = 22;
 			int radioCenterX = boxCenterX + (boxWidth - radioWidth) / 2;
 
@@ -403,7 +421,23 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 	{
 		pPictureDrift->MoveWindow(leftX, currentY, cx - margin * 2, imageHeight);
 	}
+
+	// [추가] 로딩 텍스트를 그래프 영역 중앙에 배치
+	if (pLoading != NULL && pPictureDrift != NULL)
+	{
+		CRect rectDrift;
+		pPictureDrift->GetWindowRect(&rectDrift);
+		ScreenToClient(&rectDrift);
+
+		int loadingWidth = 400;
+		int loadingHeight = 50;
+		int loadingX = rectDrift.left + (rectDrift.Width() - loadingWidth) / 2;
+		int loadingY = rectDrift.top + (rectDrift.Height() - loadingHeight) / 2;
+
+		pLoading->MoveWindow(loadingX, loadingY, loadingWidth, loadingHeight);
+	}
 }
+
 int CTabDlg2::GetSelectedCI()
 {
 	if (IsDlgButtonChecked(IDC_RADIO1) == BST_CHECKED)
@@ -430,8 +464,18 @@ void CTabDlg2::OnBnClickedRun()
 		return;
 	}
 
+	// [수정] Static 컨트롤로 로딩 텍스트 표시
+	CWnd* pLoading = GetDlgItem(IDC_STATIC_LOADING);
+	if (pLoading != NULL)
+	{
+		pLoading->SetWindowText(_T("베이지안 모델 학습중..."));
+		pLoading->ShowWindow(SW_SHOW);
+		pLoading->UpdateWindow();
+	}
+
 	pParent->RunInference(pParent->m_loadedCsvPath, ci);
 }
+
 
 void CTabDlg2::ResetRadioButtons()
 {
@@ -440,24 +484,26 @@ void CTabDlg2::ResetRadioButtons()
 
 	m_nSelectedCI = 0;
 
-	// 화면 데이터 표시 상태 초기화
 	m_bPredDataLoaded = false;
 	m_bRULDataLoaded = false;
 
-	// 캐시 데이터 무효화 및 텍스트 변수 초기화
 	m_bLoaded90 = false;
 	m_bLoaded95 = false;
 	m_strRul90.Empty();
 	m_strRul95.Empty();
 
-	// [추가] 화면에 남아있는 텍스트를 즉시 지웁니다.
+	// [수정] 로딩 텍스트 숨기기
+	CWnd* pLoading = GetDlgItem(IDC_STATIC_LOADING);
+	if (pLoading != NULL)
+	{
+		pLoading->ShowWindow(SW_HIDE);
+	}
+
 	UpdateRULDisplay(_T(""));
 
-	// 그래프 화면 지우기
 	InvalidateCache();
 	Invalidate();
 }
-
 void CTabDlg2::UpdateRULDisplay(const CString& text)
 {
 	CWnd* pMonth = GetDlgItem(IDC_STATIC_MONTH);
