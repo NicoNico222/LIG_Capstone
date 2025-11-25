@@ -100,6 +100,7 @@ BOOL CLIGCapstoneDlg::OnInitDialog()
 
 	m_brushBg.CreateSolidBrush(RGB(255, 255, 255));
 
+	/*
 	int screenWidth = GetSystemMetrics(SM_CXSCREEN);
 	int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
@@ -110,6 +111,16 @@ BOOL CLIGCapstoneDlg::OnInitDialog()
 	int posY = (screenHeight - windowHeight) / 2;
 
 	SetWindowPos(NULL, posX, posY, windowWidth, windowHeight, SWP_NOZORDER);
+	*/
+
+	// [수정 후] 작업표시줄을 제외한 전체 화면(최대화)으로 설정
+	CRect rectWorkArea;
+	SystemParametersInfo(SPI_GETWORKAREA, 0, &rectWorkArea, 0);
+
+	// 해당 크기로 윈도우 이동 및 크기 변경
+	MoveWindow(&rectWorkArea);
+
+	// ShowWindow(SW_SHOWMAXIMIZED);
 
 	InitializeTabControl();
 
@@ -670,6 +681,8 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 				m_rulText95 = resultText;
 			}
 
+			m_tabDlg2.SetRULTextCache(ci, resultText);
+
 			m_tabDlg2.UpdateRULDisplay(resultText);
 			m_tabDlg2.LoadRULGraphData(rulData);
 			m_tabDlg2.LoadPredictionGraphData(predData);
@@ -712,6 +725,8 @@ void CLIGCapstoneDlg::OnFileLoadCsv()
 
 			m_tabDlg2.ResetRadioButtons();
 
+			m_tabDlg3.ResetUI();
+
 			// 새 CSV 로드 시 기존 결과 초기화
 			ClearResults();
 
@@ -721,5 +736,23 @@ void CLIGCapstoneDlg::OnFileLoadCsv()
 		{
 			AfxMessageBox(_T("CSV 파일은 페이지1에서만 로드 가능합니다."), MB_ICONINFORMATION);
 		}
+	}
+}
+
+void CLIGCapstoneDlg::UpdateTab3Data(int ci)
+{
+	// 90% 선택 시, 90% 결과가 있다면 탭3 업데이트
+	if (ci == 90 && m_bHasResult90)
+	{
+		m_tabDlg3.UpdateRULDisplay(m_rulText90);  // RUL 텍스트 갱신
+		m_tabDlg3.UpdateCIDisplay(90);            // CI 박스 텍스트 갱신
+		m_tabDlg3.LoadRULGraphData(m_rulData90);  // 그래프 데이터 로드 및 다시 그리기
+	}
+	// 95% 선택 시, 95% 결과가 있다면 탭3 업데이트
+	else if (ci == 95 && m_bHasResult95)
+	{
+		m_tabDlg3.UpdateRULDisplay(m_rulText95);
+		m_tabDlg3.UpdateCIDisplay(95);
+		m_tabDlg3.LoadRULGraphData(m_rulData95);
 	}
 }

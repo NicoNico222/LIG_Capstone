@@ -45,4 +45,6 @@ public:
 	void UpdateRULDisplay(const CString& text);
 	void UpdateCIDisplay(int ci);
 	void LoadRULGraphData(const RULGraphData& data);
+
+	void ResetUI();
 };

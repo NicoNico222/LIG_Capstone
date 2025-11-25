@@ -312,3 +312,25 @@ void CTabDlg3::LoadRULGraphData(const RULGraphData& data)
 	InvalidateCache();
 	Invalidate();
 }
+
+// TabDlg3.cpp 맨 아래에 추가
+
+void CTabDlg3::ResetUI()
+{
+	// 1. 데이터 로드 플래그 해제 (그래프가 그려지지 않게 함)
+	m_bRULDataLoaded = false;
+
+	// 2. RUL 텍스트 초기화
+	UpdateRULDisplay(_T(""));
+
+	// 3. CI 텍스트 초기화 (빈 문자열 설정)
+	CWnd* pCIBox = GetDlgItem(IDC_STATIC_RUL_CI_BOX);
+	if (pCIBox != NULL)
+	{
+		pCIBox->SetWindowText(_T(""));
+	}
+
+	// 4. 캐시 무효화 및 화면 갱신 (하얀 배경으로 지워짐)
+	InvalidateCache();
+	Invalidate();
+}

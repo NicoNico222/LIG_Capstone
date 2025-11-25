@@ -35,6 +35,9 @@ private:
 	CFont m_fontRadio;
 	CFont m_fontMonth;
 
+	CString m_strRul90; // 90%일 때 표시할 텍스트 저장
+	CString m_strRul95; // 95%일 때 표시할 텍스트 저장
+
 	int m_nSelectedCI;
 
 	RULGraphHelper* m_pRULGraphHelper;
@@ -75,5 +78,7 @@ public:
 	void UpdateRULDisplay(const CString& text);
 	void LoadRULGraphData(const RULGraphData& data);
 	void LoadPredictionGraphData(const PredictionGraphData& data);
+	void SetRULTextCache(int ci, CString text);
 	afx_msg void OnBnClickedButton1();
+	
 };

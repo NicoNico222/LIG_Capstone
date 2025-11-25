@@ -188,35 +188,55 @@ void CTabDlg2::OnSize(UINT nType, int cx, int cy)
 	Invalidate();
 }
 
-void CTabDlg2::OnBnClickedRadio1()
+// TabDlg2.cpp
+
+void CTabDlg2::OnBnClickedRadio1() // 90% 버튼
 {
 	m_nSelectedCI = 90;
-	UpdateViewFromCache(); // 캐시된 데이터가 있으면 보여줌
+	UpdateViewFromCache(); // 탭2 갱신
+
+	// [추가] 부모 다이얼로그를 통해 탭3도 함께 갱신 요청
+	CLIGCapstoneDlg* pParent = (CLIGCapstoneDlg*)GetParent()->GetParent();
+	if (pParent != nullptr)
+	{
+		pParent->UpdateTab3Data(90);
+	}
 }
 
-// [중요 수정 2] 라디오 버튼 2 (95%) 클릭 시 - 실행 안 함, 캐시 확인만 함
-void CTabDlg2::OnBnClickedRadio2()
+void CTabDlg2::OnBnClickedRadio2() // 95% 버튼
 {
 	m_nSelectedCI = 95;
-	UpdateViewFromCache(); // 캐시된 데이터가 있으면 보여줌
+	UpdateViewFromCache(); // 탭2 갱신
+
+	// [추가] 부모 다이얼로그를 통해 탭3도 함께 갱신 요청
+	CLIGCapstoneDlg* pParent = (CLIGCapstoneDlg*)GetParent()->GetParent();
+	if (pParent != nullptr)
+	{
+		pParent->UpdateTab3Data(95);
+	}
 }
 
 void CTabDlg2::UpdateViewFromCache()
 {
 	bool bFound = false;
 
-	// 1. 현재 선택된 CI에 맞는 데이터가 캐시에 있는지 확인
 	if (m_nSelectedCI == 90 && m_bLoaded90)
 	{
-		m_predGraphData = m_predData90; // 90% 데이터 복사
-		m_rulGraphData = m_rulData90;   // 90% RUL 데이터 복사
+		m_predGraphData = m_predData90;
+		m_rulGraphData = m_rulData90;
 		bFound = true;
+
+		// [수정] 잘못된 계산 로직 삭제하고 캐시된 텍스트 사용
+		UpdateRULDisplay(m_strRul90);
 	}
 	else if (m_nSelectedCI == 95 && m_bLoaded95)
 	{
-		m_predGraphData = m_predData95; // 95% 데이터 복사
-		m_rulGraphData = m_rulData95;   // 95% RUL 데이터 복사
+		m_predGraphData = m_predData95;
+		m_rulGraphData = m_rulData95;
 		bFound = true;
+
+		// [수정] 잘못된 계산 로직 삭제하고 캐시된 텍스트 사용
+		UpdateRULDisplay(m_strRul95);
 	}
 
 	// 2. 데이터 로드 상태 갱신
@@ -225,27 +245,21 @@ void CTabDlg2::UpdateViewFromCache()
 		m_bPredDataLoaded = true;
 		m_bRULDataLoaded = true;
 
-		// RUL 텍스트 업데이트 (소수점 한자리 등 포맷에 맞춰서)
-		CString strRul;
-		// rul_mean_list의 평균 혹은 대표값을 쓴다고 가정 (데이터 구조에 따라 조정)
+		// [삭제] 아래의 잘못된 코드를 지우거나 주석 처리하세요
+		/* CString strRul;
 		double rulVal = 0.0;
 		if (!m_rulGraphData.rul_mean_list.empty()) rulVal = m_rulGraphData.rul_mean_list[0];
 		strRul.Format(_T("%.1f Month"), rulVal);
 		UpdateRULDisplay(strRul);
+		*/
 	}
 	else
 	{
-		// 데이터가 아직 없으면(실행 안 함) 화면에서 그래프 숨김/초기화
-		// 요구사항 2번: "변화 없음"을 원하면 이 else문을 비우면 되지만, 
-		// 95%를 눌렀는데 90% 그래프가 떠있으면 헷갈리므로 보통은 클리어하거나 유지합니다.
-		// 여기서는 "실행을 눌러야 결과가 나옴"을 명확히 하기 위해 플래그를 false로 합니다.
-		// (단, 요구사항 2번에 따라 "변화 없음"을 엄격히 따르려면 이 else 블록 전체를 주석 처리하세요)
 		m_bPredDataLoaded = false;
 		m_bRULDataLoaded = false;
-		UpdateRULDisplay(_T("")); // 텍스트 클리어
+		UpdateRULDisplay(_T(""));
 	}
 
-	// 3. 다시 그리기
 	InvalidateCache();
 	Invalidate();
 }
@@ -426,14 +440,20 @@ void CTabDlg2::ResetRadioButtons()
 
 	m_nSelectedCI = 0;
 
-	// 화면 데이터도 초기화
+	// 화면 데이터 표시 상태 초기화
 	m_bPredDataLoaded = false;
 	m_bRULDataLoaded = false;
 
-	// (선택사항) 캐시까지 날리고 싶으면 아래 주석 해제
+	// 캐시 데이터 무효화 및 텍스트 변수 초기화
 	m_bLoaded90 = false;
 	m_bLoaded95 = false;
+	m_strRul90.Empty();
+	m_strRul95.Empty();
 
+	// [추가] 화면에 남아있는 텍스트를 즉시 지웁니다.
+	UpdateRULDisplay(_T(""));
+
+	// 그래프 화면 지우기
 	InvalidateCache();
 	Invalidate();
 }
@@ -480,4 +500,10 @@ void CTabDlg2::LoadRULGraphData(const RULGraphData& data)
 		// 여기서 직접 호출
 		Invalidate();
 	}
+}
+
+void CTabDlg2::SetRULTextCache(int ci, CString text)
+{
+	if (ci == 90) m_strRul90 = text;
+	else if (ci == 95) m_strRul95 = text;
 }

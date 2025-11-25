@@ -9,6 +9,7 @@ public:
 	CLIGCapstoneDlg(CWnd* pParent = nullptr);
 	CString m_loadedCsvPath;
 	void RunInference(const CString& csvPath, int ci);
+	void UpdateTab3Data(int ci);
 
 #ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_LIG_CAPSTONE_DIALOG };
