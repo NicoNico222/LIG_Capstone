@@ -690,8 +690,6 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 			m_tabDlg3.UpdateRULDisplay(resultText);
 			m_tabDlg3.UpdateCIDisplay(ci);
 			m_tabDlg3.LoadRULGraphData(rulData);
-
-			AfxMessageBox(_T("실행에 성공했습니다."), MB_ICONINFORMATION);
 		}
 		else
 		{
@@ -725,12 +723,9 @@ void CLIGCapstoneDlg::OnFileLoadCsv()
 
 			m_tabDlg2.ResetRadioButtons();
 
-			m_tabDlg3.ResetUI();
 
 			// 새 CSV 로드 시 기존 결과 초기화
 			ClearResults();
-
-			AfxMessageBox(_T("CSV 파일이 로드되었습니다."));
 		}
 		else
 		{

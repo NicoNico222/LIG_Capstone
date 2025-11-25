@@ -222,10 +222,6 @@ void CTabDlg1::LoadCSVFile(const CString& filePath)
 			// 캐시 무효화
 			InvalidateCache();
 
-			CString msg;
-			msg.Format(_T("데이터 로드 완료!\n총 %d개의 데이터 포인트"), m_imuData.dataSize);
-			AfxMessageBox(msg, MB_ICONINFORMATION);
-
 			// 다시 그리기
 			Invalidate();
 		}

@@ -359,7 +359,7 @@ void RULGraphHelper::DrawLegend(CDC* pDC, CRect rect, int ci)
     LegendItem items[] = {
         // 왼쪽 열 (4개)
         { 0, Color(255, 31, 119, 180), _T("A train ~ B predict Regression ") },
-        { 1, Color(255, 31, 119, 180), _T("B Predictive Mean") },
+        { 1, Color(255, 44, 160, 44), _T("B Predictive Mean") },
         { 1, Color(255, 255, 127, 14), _T("A Input") },
         { 1, Color(255, 255, 0, 0),    _T("B Target") },
         // 오른쪽 열 (3개)
@@ -488,7 +488,7 @@ void RULGraphHelper::DrawSinglePredictionGraph(Graphics& graphics, RectF rect,
     graphics.DrawString(title, -1, &titleFont, titleRect, &titleFormat, &titleBrush);
 
     // [수정 1] 하단 여백을 줄여 그래프 크기 확보 (범례공간 + 축 텍스트 공간)
-    float bottomMargin = 65.0f;
+    float bottomMargin = 75.0f;
 
     RectF plotRect(rect.X + 50, rect.Y + titleHeight + 10,
         rect.Width - 75, rect.Height - titleHeight - bottomMargin);
@@ -607,11 +607,11 @@ void RULGraphHelper::DrawSinglePredictionGraph(Graphics& graphics, RectF rect,
     // [수정 2] 범례 위치 조정 (화면 최하단 기준 -40 위치)
     float legendY = rect.Y + rect.Height - 23.0f;
     float legendX = rect.X + 10;
-    float col2X = legendX + 140.0f; // 2열 시작 위치
+    float col2X = legendX + 165.0f; // 2열 시작 위치
     float lineLen = 30.0f;
     float spacing = 15.0f;
 
-    Gdiplus::Font legendFont(L"맑은 고딕", 7);
+    Gdiplus::Font legendFont(L"맑은 고딕", 10);
     Pen kdePen(Color(255, 100, 149, 237), 2.0f);
 
     // 1행
