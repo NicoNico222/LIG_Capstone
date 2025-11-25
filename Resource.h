@@ -34,6 +34,7 @@
 #define IDC_STATIC_MONTH2               1026
 #define IDC_STATIC_RUL_CI_BOX           1027
 #define IDC_STATIC_LEGEND               1028
+#define IDC_STATIC_LOADING              1029
 #define ID_32771                        32771
 #define ID_32772                        32772
 #define ID_FILE_LOAD_CSV                32773
@@ -44,7 +45,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        138
 #define _APS_NEXT_COMMAND_VALUE         32774
-#define _APS_NEXT_CONTROL_VALUE         1029
+#define _APS_NEXT_CONTROL_VALUE         1030
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
