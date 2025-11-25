@@ -176,6 +176,8 @@ void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
 {
     if (data.empty()) return;
 
+    GraphicsState state = graphics.Save();
+
     SolidBrush bgBrush(Color(255, 245, 245, 245));
     graphics.FillRectangle(&bgBrush, rect);
 
@@ -192,11 +194,10 @@ void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
     int dataSize = (int)data.size();
     int displaySize = min(dataSize, maxPoints);
 
-    // Min-Max 정규화 (Python과 동일)
     double minVal = *std::min_element(data.begin(), data.begin() + displaySize);
     double maxVal = *std::max_element(data.begin(), data.begin() + displaySize);
     double range = maxVal - minVal;
-    if (range < 1e-8) range = 1.0;  // 1e-10 -> 1e-8로 변경
+    if (range < 1e-8) range = 1.0;
 
     Pen axisPen(Color(255, 0, 0, 0), 1.0f);
     graphics.DrawLine(&axisPen,
@@ -230,16 +231,10 @@ void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
     vector<PointF> points;
     for (int i = 0; i < displaySize; i++)
     {
-        // X축: 시간 정규화 (0~1)
         float x_norm = (float)i / (displaySize - 1);
-
-        // Y축: Min-Max 정규화 (0~1) - Python과 동일
         float y_norm = (float)((data[i] - minVal) / range);
-
         float x = graphRect.X + x_norm * graphRect.Width;
-        // Y축 반전: 0이 아래, 1이 위 (Python 그래프와 동일)
         float y = graphRect.Y + graphRect.Height * (1.0f - y_norm);
-
         points.push_back(PointF(x, y));
     }
 
@@ -254,30 +249,23 @@ void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
     format.SetAlignment(StringAlignmentFar);
     format.SetLineAlignment(StringAlignmentCenter);
 
-    // Y축 레이블: 0.0 ~ 1.0 (아래에서 위로)
     for (int i = 0; i <= 5; i++)
     {
         float yPos = graphRect.Y + graphRect.Height * i / 5.0f;
-        // 반전된 값 표시
         double value = 1.0 - (i / 5.0);
-
         CString label;
         label.Format(_T("%.1f"), value);
-
         RectF labelRect(graphRect.X - 50, yPos - 8, 45, 16);
         graphics.DrawString(label, -1, &font, labelRect, &format, &textBrush);
     }
 
-    // X축 레이블: 0.0 ~ 1.0
     format.SetAlignment(StringAlignmentCenter);
     for (int i = 0; i <= 5; i++)
     {
         float xPos = graphRect.X + graphRect.Width * i / 5.0f;
         double value = i / 5.0;
-
         CString label;
         label.Format(_T("%.1f"), value);
-
         RectF labelRect(xPos - 20, graphRect.Y + graphRect.Height + 5, 40, 16);
         graphics.DrawString(label, -1, &font, labelRect, &format, &textBrush);
     }
@@ -287,14 +275,16 @@ void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
         graphRect.Width, 16);
     graphics.DrawString(xlabel, -1, &font, xlabelRect, &format, &textBrush);
 
-    StringFormat vformat;
-    vformat.SetAlignment(StringAlignmentCenter);
-    vformat.SetLineAlignment(StringAlignmentCenter);
-    vformat.SetFormatFlags(StringFormatFlagsDirectionVertical);
+    GraphicsState state2 = graphics.Save();
+    graphics.TranslateTransform(graphRect.X - 40, graphRect.Y + graphRect.Height / 2);
+    graphics.RotateTransform(-90);
 
     CString ylabel = _T("normalized value");
-    RectF ylabelRect(graphRect.X - 55, graphRect.Y, 16, graphRect.Height);
-    graphics.DrawString(ylabel, -1, &font, ylabelRect, &vformat, &textBrush);
+    RectF ylabelRect(-graphRect.Height / 2, -8, graphRect.Height, 16);
+    graphics.DrawString(ylabel, -1, &font, ylabelRect, &format, &textBrush);
+
+    graphics.Restore(state2);
+    graphics.Restore(state);
 }
 
 void CGraphHelper::DrawAxis(Graphics& graphics, RectF rect)
