@@ -120,6 +120,8 @@ BOOL CLIGCapstoneDlg::OnInitDialog()
 	// 해당 크기로 윈도우 이동 및 크기 변경
 	MoveWindow(&rectWorkArea);
 
+	ModifyStyle(0, WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
+
 	// ShowWindow(SW_SHOWMAXIMIZED);
 
 	InitializeTabControl();
