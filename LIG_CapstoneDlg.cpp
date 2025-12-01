@@ -716,23 +716,22 @@ void CLIGCapstoneDlg::OnFileLoadCsv()
 	{
 		CString filePath = dlg.GetPathName();
 
-		int nSel = m_tabControl.GetCurSel();
-		if (nSel == 0)
-		{
-			m_tabDlg1.LoadCSVFile(filePath);
+		// CSV 경로 저장
+		m_loadedCsvPath = filePath;
 
-			m_loadedCsvPath = filePath;
+		// Tab1에 항상 로드 (어느 탭에서든 실행 가능)
+		m_tabDlg1.LoadCSVFile(filePath);
 
-			m_tabDlg2.ResetRadioButtons();
+		// Tab2 초기화
+		m_tabDlg2.ResetRadioButtons();
 
+		// Tab3 초기화
+		m_tabDlg3.ResetUI();
 
-			// 새 CSV 로드 시 기존 결과 초기화
-			ClearResults();
-		}
-		else
-		{
-			AfxMessageBox(_T("CSV 파일은 페이지1에서만 로드 가능합니다."), MB_ICONINFORMATION);
-		}
+		// 기존 추론 결과 초기화
+		ClearResults();
+
+		AfxMessageBox(_T("CSV 파일이 로드되었습니다."), MB_ICONINFORMATION);
 	}
 }
 
