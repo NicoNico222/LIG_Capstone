@@ -30,7 +30,6 @@ protected:
 	CTabDlg3 m_tabDlg3;
 	CDialog* m_pCurrentTab;
 
-	// 결과 캐싱
 	bool m_bHasResult90;
 	bool m_bHasResult95;
 	RULGraphData m_rulData90;

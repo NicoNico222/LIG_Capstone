@@ -27,12 +27,12 @@ private:
 	CBrush m_brushBg;
 	CFont m_fontTitle;
 
-	// 그래프 헬퍼
+
 	CGraphHelper* m_pGraphHelper;
 	IMUData m_imuData;
 	bool m_bDataLoaded;
 
-	// 비트맵 캐싱 추가
+
 	CImage m_cachedLeftGraph;
 	CImage m_cachedRightGraph;
 	bool m_bCacheValid;
@@ -41,9 +41,9 @@ private:
 
 	void InitializeUI();
 	void ArrangeControls(int cx, int cy);
-	void InvalidateCache();  // 캐시 무효화
+	void InvalidateCache(); 
 
 public:
-	// CSV 로드 함수 (메인 다이얼로그에서 호출)
+
 	void LoadCSVFile(const CString& filePath);
 };

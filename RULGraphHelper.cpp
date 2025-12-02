@@ -198,6 +198,8 @@ void RULGraphHelper::DrawSingleRULGraph(
     double y_min = -1.0;
     double y_max = 1.0;
 
+
+
     Pen axisPen(Color(255, 0, 0, 0), 1.0f);
     graphics.DrawLine(&axisPen, PointF(graphRect.X, graphRect.Y), PointF(graphRect.X, graphRect.Y + graphRect.Height));
     graphics.DrawLine(&axisPen, PointF(graphRect.X, graphRect.Y + graphRect.Height), PointF(graphRect.X + graphRect.Width, graphRect.Y + graphRect.Height));
