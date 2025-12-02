@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <gdiplus.h>
+#include "RULGraphHelper.h"  // AxisInfo 구조체 사용
 
 #pragma comment(lib, "gdiplus.lib")
 
@@ -31,12 +32,12 @@ private:
 
     ULONG_PTR m_gdiplusToken;
 
+    AxisInfo CalculateNiceAxis(double min_val, double max_val, int max_ticks);
 
     void DrawSingleGraph(Graphics& graphics, RectF rect,
         const vector<double>& data,
         const CString& title,
         int maxPoints = 10000);
-
 
     void DrawAxis(Graphics& graphics, RectF rect);
 

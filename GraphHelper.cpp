@@ -35,6 +35,7 @@ bool CGraphHelper::LoadCSV(const CString& filePath, IMUData& data)
 
     while (std::getline(file, line))
     {
+        // 헤더 스킵
         if (isFirstLine)
         {
             isFirstLine = false;
@@ -55,9 +56,10 @@ bool CGraphHelper::LoadCSV(const CString& filePath, IMUData& data)
             }
         }
 
+        // 최소 15개 컬럼 필요
         if (values.size() >= 15)
         {
-            // IMU_MODE 확인 (첫 번째 컬럼, index 0)
+            // ========== Python과 동일: IMU_MODE 확인 ==========
             int imu_mode = (int)values[0];
 
             // IMU_MODE가 8이 아니면 스킵
@@ -66,23 +68,36 @@ bool CGraphHelper::LoadCSV(const CString& filePath, IMUData& data)
 
             mode8LineCount++;
 
-            // IMU_MODE=8인 행 중 200행 이전은 스킵
+            // ========== Python과 동일: 200~10200 행만 선택 ==========
             if (mode8LineCount < 200)
                 continue;
 
-            // IMU_MODE=8인 행 중 10200행 이후는 스킵
             if (mode8LineCount > 10200)
                 break;
 
-            // X 데이터
-            data.XA.push_back(values[3]);
-            data.YA.push_back(values[4]);
-            data.ZA.push_back(values[5]);
-            data.XW.push_back(values[6]);
-            data.YW.push_back(values[7]);
-            data.ZW.push_back(values[8]);
+            // ========== Python과 동일: 단위 변환 ==========
+            // 가속도: 0.001g -> m/s²
+            // X_DEL_VEL * 1000 / 9.8
+            double xa = values[3] * 1000.0 / 9.8;
+            double ya = values[4] * 1000.0 / 9.8;
+            double za = values[5] * 1000.0 / 9.8;
 
-            // Y 데이터 (원본 값)
+            // 각속도: 0.01rad/s -> deg/s  
+            // X_DEL_ANG * 18000 / π
+            const double PI = 3.14159265358979323846;
+            double xw = values[6] * 18000.0 / PI;
+            double yw = values[7] * 18000.0 / PI;
+            double zw = values[8] * 18000.0 / PI;
+
+            // X 데이터 (단위 변환 완료)
+            data.XA.push_back(xa);
+            data.YA.push_back(ya);
+            data.ZA.push_back(za);
+            data.XW.push_back(xw);
+            data.YW.push_back(yw);
+            data.ZW.push_back(zw);
+
+            // Y 데이터 (원본 값 그대로)
             data.N.push_back(values[9]);
             data.E.push_back(values[10]);
             data.D.push_back(values[11]);
@@ -99,6 +114,8 @@ bool CGraphHelper::LoadCSV(const CString& filePath, IMUData& data)
 
     return lineCount > 0;
 }
+
+
 
 void CGraphHelper::DrawGraph(CDC* pDC, CRect rect, const IMUData& data, bool isXData)
 {
@@ -169,6 +186,47 @@ void CGraphHelper::DrawGraph(CDC* pDC, CRect rect, const IMUData& data, bool isX
     }
 }
 
+AxisInfo CGraphHelper::CalculateNiceAxis(double min_val, double max_val, int max_ticks)
+{
+    AxisInfo info;
+
+    // 범위 계산
+    double range = max_val - min_val;
+    if (range < 1e-10) range = 1.0;
+
+    // Nice 단계 크기 계산
+    double rough_step = range / (max_ticks - 1);
+    double magnitude = pow(10, floor(log10(rough_step)));
+
+    // Nice 숫자로 반올림 (1, 2, 5, 10의 배수)
+    double nice_step;
+    double residual = rough_step / magnitude;
+
+    if (residual <= 1.0)
+        nice_step = 1.0 * magnitude;
+    else if (residual <= 2.0)
+        nice_step = 2.0 * magnitude;
+    else if (residual <= 5.0)
+        nice_step = 5.0 * magnitude;
+    else
+        nice_step = 10.0 * magnitude;
+
+    // Nice min/max 계산
+    info.min_val = floor(min_val / nice_step) * nice_step;
+    info.max_val = ceil(max_val / nice_step) * nice_step;
+    info.step = nice_step;
+    info.tick_count = (int)round((info.max_val - info.min_val) / nice_step);
+
+    // 최소 눈금 개수 보장
+    if (info.tick_count < 2) {
+        info.tick_count = 2;
+        info.step = (info.max_val - info.min_val) / info.tick_count;
+    }
+
+    return info;
+}
+
+
 void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
     const vector<double>& data,
     const CString& title,
@@ -178,27 +236,41 @@ void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
 
     GraphicsState state = graphics.Save();
 
+    // 배경
     SolidBrush bgBrush(Color(255, 245, 245, 245));
     graphics.FillRectangle(&bgBrush, rect);
 
     Pen borderPen(Color(255, 200, 200, 200), 1.0f);
     graphics.DrawRectangle(&borderPen, rect);
 
+    // 타이틀
     float titleHeight = 25.0f;
     RectF titleRect(rect.X, rect.Y, rect.Width, titleHeight);
     DrawTitle(graphics, titleRect, title);
 
+    // 그래프 영역
     RectF graphRect(rect.X + 60, rect.Y + titleHeight + 5,
         rect.Width - 75, rect.Height - titleHeight - 40);
 
     int dataSize = (int)data.size();
     int displaySize = min(dataSize, maxPoints);
 
+    // 원시값의 min/max 계산
     double minVal = *std::min_element(data.begin(), data.begin() + displaySize);
     double maxVal = *std::max_element(data.begin(), data.begin() + displaySize);
-    double range = maxVal - minVal;
+
+    // ========== 수정: CalculateNiceAxis로 균등한 Y축 생성 (눈금 5~6개) ==========
+    AxisInfo axisInfo = CalculateNiceAxis(minVal, maxVal, 6);
+
+    double yMin = axisInfo.min_val;
+    double yMax = axisInfo.max_val;
+    double yStep = axisInfo.step;
+    int yTickCount = axisInfo.tick_count;
+
+    double range = yMax - yMin;
     if (range < 1e-8) range = 1.0;
 
+    // 축 그리기
     Pen axisPen(Color(255, 0, 0, 0), 1.0f);
     graphics.DrawLine(&axisPen,
         PointF(graphRect.X, graphRect.Y),
@@ -207,17 +279,22 @@ void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
         PointF(graphRect.X, graphRect.Y + graphRect.Height),
         PointF(graphRect.X + graphRect.Width, graphRect.Y + graphRect.Height));
 
+    // 그리드 (CalculateNiceAxis 기반)
     Pen gridPen(Color(100, 200, 200, 200), 0.5f);
     gridPen.SetDashStyle(DashStyleDot);
 
-    for (int i = 1; i <= 4; i++)
+    for (int i = 0; i <= yTickCount; i++)
     {
-        float y = graphRect.Y + graphRect.Height * i / 5.0f;
+        double tickValue = yMin + i * yStep;
+        float y_norm = (float)((yMax - tickValue) / range);
+        float y = graphRect.Y + graphRect.Height * y_norm;
+
         graphics.DrawLine(&gridPen,
             PointF(graphRect.X, y),
             PointF(graphRect.X + graphRect.Width, y));
     }
 
+    // X축 그리드 (5등분)
     for (int i = 1; i <= 4; i++)
     {
         float x = graphRect.X + graphRect.Width * i / 5.0f;
@@ -226,15 +303,17 @@ void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
             PointF(x, graphRect.Y + graphRect.Height));
     }
 
+    // 데이터 선 그리기
     Pen dataPen(Color(255, 31, 119, 180), 1.5f);
 
     vector<PointF> points;
     for (int i = 0; i < displaySize; i++)
     {
         float x_norm = (float)i / (displaySize - 1);
-        float y_norm = (float)((data[i] - minVal) / range);
+        float y_norm = (float)((yMax - data[i]) / range);
+
         float x = graphRect.X + x_norm * graphRect.Width;
-        float y = graphRect.Y + graphRect.Height * (1.0f - y_norm);
+        float y = graphRect.Y + graphRect.Height * y_norm;
         points.push_back(PointF(x, y));
     }
 
@@ -243,43 +322,116 @@ void CGraphHelper::DrawSingleGraph(Graphics& graphics, RectF rect,
         graphics.DrawLines(&dataPen, &points[0], (int)points.size());
     }
 
+    // ========== 수정: Y축 레이블 (적응형 포맷) ==========
     Gdiplus::Font font(L"맑은 고딕", 8);
     SolidBrush textBrush(Color(255, 0, 0, 0));
     StringFormat format;
     format.SetAlignment(StringAlignmentFar);
     format.SetLineAlignment(StringAlignmentCenter);
 
-    for (int i = 0; i <= 5; i++)
+    for (int i = 0; i <= yTickCount; i++)
     {
-        float yPos = graphRect.Y + graphRect.Height * i / 5.0f;
-        double value = 1.0 - (i / 5.0);
+        double tickValue = yMin + i * yStep;
+        float y_norm = (float)((yMax - tickValue) / range);
+        float yPos = graphRect.Y + graphRect.Height * y_norm;
+
         CString label;
-        label.Format(_T("%.1f"), value);
-        RectF labelRect(graphRect.X - 50, yPos - 8, 45, 16);
+
+        // ========== 0 값 특별 처리 ==========
+        if (fabs(tickValue) < 1e-10)
+        {
+            // 0인 경우: step에 맞춰 포맷 결정 (최대 3자리)
+            double absStep = fabs(yStep);
+
+            if (absStep >= 1.0)
+                label = _T("0");
+            else if (absStep >= 0.1)
+                label = _T("0.0");
+            else if (absStep >= 0.01)
+                label = _T("0.00");
+            else  // 0.001 이하도 0.000으로 표시
+                label = _T("0.000");
+        }
+        else
+        {
+            // 0이 아닌 경우: 스마트 포맷 적용 (최대 3자리)
+            double absValue = fabs(tickValue);
+            double absStep = fabs(yStep);
+
+            if (absValue < 0.0001 || absValue > 100000)
+            {
+                // 과학적 표기법 (극단적으로 작거나 큰 값만)
+                label.Format(_T("%.2e"), tickValue);
+            }
+            else if (absStep >= 1.0)
+            {
+                // 정수 또는 1자리 소수
+                if (absStep >= 10.0)
+                    label.Format(_T("%.0f"), tickValue);
+                else
+                    label.Format(_T("%.1f"), tickValue);
+            }
+            else if (absStep >= 0.01)
+            {
+                // 2자리 소수
+                label.Format(_T("%.2f"), tickValue);
+
+                // -0.00 방지
+                if (label == _T("-0.00"))
+                    label = _T("0.00");
+            }
+            else  // absStep < 0.01 (0.001 이하 포함)
+            {
+                // ========== 수정: 무조건 3자리 소수 ==========
+                label.Format(_T("%.3f"), tickValue);
+
+                // -0.000 방지
+                if (label == _T("-0.000"))
+                    label = _T("0.000");
+            }
+        }
+
+        RectF labelRect(graphRect.X - 55, yPos - 8, 50, 16);
         graphics.DrawString(label, -1, &font, labelRect, &format, &textBrush);
     }
 
+    // X축 레이블 (0, 2000, 4000, 6000, 8000, 10000)
     format.SetAlignment(StringAlignmentCenter);
+    int xLabels[] = { 0, 2000, 4000, 6000, 8000, 10000 };
+
     for (int i = 0; i <= 5; i++)
     {
         float xPos = graphRect.X + graphRect.Width * i / 5.0f;
-        double value = i / 5.0;
         CString label;
-        label.Format(_T("%.1f"), value);
-        RectF labelRect(xPos - 20, graphRect.Y + graphRect.Height + 5, 40, 16);
+        label.Format(_T("%d"), xLabels[i]);
+
+        RectF labelRect(xPos - 25, graphRect.Y + graphRect.Height + 5, 50, 16);
         graphics.DrawString(label, -1, &font, labelRect, &format, &textBrush);
     }
 
-    CString xlabel = _T("normalized time");
+    // X축 라벨
+    CString xlabel = _T("time index");
     RectF xlabelRect(graphRect.X, graphRect.Y + graphRect.Height + 22,
         graphRect.Width, 16);
     graphics.DrawString(xlabel, -1, &font, xlabelRect, &format, &textBrush);
 
+    // Y축 라벨
     GraphicsState state2 = graphics.Save();
-    graphics.TranslateTransform(graphRect.X - 40, graphRect.Y + graphRect.Height / 2);
+    graphics.TranslateTransform(graphRect.X - 45, graphRect.Y + graphRect.Height / 2);
     graphics.RotateTransform(-90);
 
-    CString ylabel = _T("normalized value");
+    CString ylabel;
+    if (title == _T("XA") || title == _T("YA") || title == _T("ZA"))
+        ylabel = _T("acc");
+    else if (title == _T("XW") || title == _T("YW") || title == _T("ZW"))
+        ylabel = _T("gyro");
+    else if (title == _T("Roll") || title == _T("Pitch") || title == _T("Yaw"))
+        ylabel = _T("attitude");
+    else if (title == _T("V_North") || title == _T("V_East") || title == _T("V_Down"))
+        ylabel = _T("velocity");
+    else
+        ylabel = _T("value");
+
     RectF ylabelRect(-graphRect.Height / 2, -8, graphRect.Height, 16);
     graphics.DrawString(ylabel, -1, &font, ylabelRect, &format, &textBrush);
 
