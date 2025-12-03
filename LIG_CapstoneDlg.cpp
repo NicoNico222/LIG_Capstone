@@ -701,7 +701,6 @@ void CLIGCapstoneDlg::OnFileLoadCsv()
 
 		ClearResults();
 
-		AfxMessageBox(_T("CSV 파일이 로드되었습니다."), MB_ICONINFORMATION);
 	}
 }
 
