@@ -41,7 +41,7 @@ BEGIN_MESSAGE_MAP(CAboutDlg, CDialogEx)
 END_MESSAGE_MAP()
 
 
-CLIGCapstoneDlg::CLIGCapstoneDlg(CWnd* pParent /*=nullptr*/)
+CLIGCapstoneDlg::CLIGCapstoneDlg(CWnd* pParent)
 	: CDialogEx(IDD_LIG_CAPSTONE_DIALOG, pParent)
 	, m_pCurrentTab(nullptr)
 	, m_bHasResult90(false)
@@ -100,29 +100,12 @@ BOOL CLIGCapstoneDlg::OnInitDialog()
 
 	m_brushBg.CreateSolidBrush(RGB(255, 255, 255));
 
-	/*
-	int screenWidth = GetSystemMetrics(SM_CXSCREEN);
-	int screenHeight = GetSystemMetrics(SM_CYSCREEN);
-
-	int windowWidth = (int)(screenWidth * 0.90);
-	int windowHeight = (int)(screenHeight * 0.90);
-
-	int posX = (screenWidth - windowWidth) / 2;
-	int posY = (screenHeight - windowHeight) / 2;
-
-	SetWindowPos(NULL, posX, posY, windowWidth, windowHeight, SWP_NOZORDER);
-	*/
-
-	// [수정 후] 작업표시줄을 제외한 전체 화면(최대화)으로 설정
 	CRect rectWorkArea;
 	SystemParametersInfo(SPI_GETWORKAREA, 0, &rectWorkArea, 0);
 
-	// 해당 크기로 윈도우 이동 및 크기 변경
 	MoveWindow(&rectWorkArea);
 
 	ModifyStyle(0, WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
-
-	// ShowWindow(SW_SHOWMAXIMIZED);
 
 	InitializeTabControl();
 
@@ -255,7 +238,7 @@ void CLIGCapstoneDlg::ShowTab(int nTab)
 		m_tabDlg2.MoveWindow(&tabRect);
 		m_tabDlg2.ShowWindow(SW_SHOW);
 	}
-	else if (nTab == 2)  // 이 부분만 추가
+	else if (nTab == 2)
 	{
 		m_pCurrentTab = &m_tabDlg3;
 		m_tabDlg3.MoveWindow(&tabRect);
@@ -273,7 +256,6 @@ void CLIGCapstoneDlg::OnTcnSelchangeTabPage(NMHDR* pNMHDR, LRESULT* pResult)
 
 void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 {
-	// 이미 결과가 있으면 캐시된 데이터 사용
 	if ((ci == 90 && m_bHasResult90) || (ci == 95 && m_bHasResult95))
 	{
 		if (ci == 90)
@@ -381,7 +363,7 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 
 		bool success = false;
 		RULGraphData rulData;
-		PredictionGraphData predData;  // 새로 추가
+		PredictionGraphData predData;
 
 		size_t data_pos = fullResponse.find("\"data\"");
 		if (data_pos == std::string::npos)
@@ -423,7 +405,6 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 			}
 		}
 
-		// === 기존 vis_rul_graph 파싱 ===
 		size_t vis_rul_pos = fullResponse.find("\"vis_rul_graph\"", data_pos);
 		if (vis_rul_pos != std::string::npos)
 		{
@@ -573,7 +554,6 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 			}
 		}
 
-		// === 새로 추가: vis_result 파싱 ===
 		size_t vis_result_pos = fullResponse.find("\"vis_result\"", data_pos);
 		if (vis_result_pos != std::string::npos)
 		{
@@ -641,24 +621,19 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 				return result;
 				};
 
-			// true_values 파싱
 			predData.true_values = parseDoubleArray(fullResponse, "true_values", vis_result_pos);
 
-			// predictions 섹션 찾기
 			size_t predictions_pos = fullResponse.find("\"predictions\"", vis_result_pos);
 			if (predictions_pos != std::string::npos)
 			{
-				// mean 파싱
 				predData.mean = parseDoubleArray(fullResponse, "mean", predictions_pos);
 
-				// CI에 따라 다른 키 사용
 				std::string ci_lower_key = (ci == 90) ? "percentile_5.0" : "percentile_2.5";
 				std::string ci_upper_key = (ci == 90) ? "percentile_95.0" : "percentile_97.5";
 
 				predData.ci_lower = parseDoubleArray(fullResponse, ci_lower_key, predictions_pos);
 				predData.ci_upper = parseDoubleArray(fullResponse, ci_upper_key, predictions_pos);
 
-				// samples 파싱 (2D array)
 				predData.samples = parse2DArray(fullResponse, "samples", predictions_pos);
 			}
 		}
@@ -716,19 +691,14 @@ void CLIGCapstoneDlg::OnFileLoadCsv()
 	{
 		CString filePath = dlg.GetPathName();
 
-		// CSV 경로 저장
 		m_loadedCsvPath = filePath;
 
-		// Tab1에 항상 로드 (어느 탭에서든 실행 가능)
 		m_tabDlg1.LoadCSVFile(filePath);
 
-		// Tab2 초기화
 		m_tabDlg2.ResetRadioButtons();
 
-		// Tab3 초기화
 		m_tabDlg3.ResetUI();
 
-		// 기존 추론 결과 초기화
 		ClearResults();
 
 		AfxMessageBox(_T("CSV 파일이 로드되었습니다."), MB_ICONINFORMATION);
@@ -737,14 +707,12 @@ void CLIGCapstoneDlg::OnFileLoadCsv()
 
 void CLIGCapstoneDlg::UpdateTab3Data(int ci)
 {
-	// 90% 선택 시, 90% 결과가 있다면 탭3 업데이트
 	if (ci == 90 && m_bHasResult90)
 	{
-		m_tabDlg3.UpdateRULDisplay(m_rulText90);  // RUL 텍스트 갱신
-		m_tabDlg3.UpdateCIDisplay(90);            // CI 박스 텍스트 갱신
-		m_tabDlg3.LoadRULGraphData(m_rulData90);  // 그래프 데이터 로드 및 다시 그리기
+		m_tabDlg3.UpdateRULDisplay(m_rulText90);
+		m_tabDlg3.UpdateCIDisplay(90);
+		m_tabDlg3.LoadRULGraphData(m_rulData90);
 	}
-	// 95% 선택 시, 95% 결과가 있다면 탭3 업데이트
 	else if (ci == 95 && m_bHasResult95)
 	{
 		m_tabDlg3.UpdateRULDisplay(m_rulText95);

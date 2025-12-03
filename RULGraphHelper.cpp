@@ -25,16 +25,12 @@ AxisInfo RULGraphHelper::CalculateNiceAxis(double min_val, double max_val, int m
     double range = max_val - min_val;
     if (range <= 0) range = 1.0;
 
-    // 1. 대략적인 간격 계산
     double rough_step = range / (max_ticks - 1);
 
-    // 2. 10의 거듭제곱 단위로 정규화 (예: 250 -> 2.5)
     double exponent = floor(log10(rough_step));
     double fraction = rough_step / pow(10.0, exponent);
     double nice_fraction;
 
-    // 3. 깔끔한 단위(1, 2, 5, 10) 선택 로직
-    // 파이썬처럼 촘촘하게 보이기 위해 기준을 조금 더 낮게 잡음
     if (fraction < 1.5) nice_fraction = 1.0;
     else if (fraction < 3.0) nice_fraction = 2.0;
     else if (fraction < 7.0) nice_fraction = 5.0;
@@ -42,13 +38,10 @@ AxisInfo RULGraphHelper::CalculateNiceAxis(double min_val, double max_val, int m
 
     double nice_step = nice_fraction * pow(10.0, exponent);
 
-    // 4. 축 범위 재조정
     double nice_min = floor(min_val / nice_step) * nice_step;
     double nice_max = ceil(max_val / nice_step) * nice_step;
     int tick_count = (int)((nice_max - nice_min) / nice_step) + 1;
 
-    // [중요] 눈금이 너무 적으면(예: 0, 1000, 2000, 3000 -> 4개), 
-    // 간격을 강제로 반으로 줄여서(0, 500, 1000...) 최소 5개 이상 확보
     if (tick_count < 5)
     {
         nice_step /= 2.0;
@@ -171,7 +164,6 @@ void RULGraphHelper::DrawSingleRULGraph(
     if (target_x > raw_x_max) raw_x_max = target_x;
     if (rul_mean > raw_x_max) raw_x_max = rul_mean;
 
-    // [수정] max_ticks를 5 -> 10으로 늘림 (더 촘촘하게 요청)
     AxisInfo xAxis = CalculateNiceAxis(raw_x_min, raw_x_max, 8);
     double x_min = xAxis.min_val;
     double x_max = xAxis.max_val;
@@ -198,8 +190,6 @@ void RULGraphHelper::DrawSingleRULGraph(
     double y_min = -1.0;
     double y_max = 1.0;
 
-
-
     Pen axisPen(Color(255, 0, 0, 0), 1.0f);
     graphics.DrawLine(&axisPen, PointF(graphRect.X, graphRect.Y), PointF(graphRect.X, graphRect.Y + graphRect.Height));
     graphics.DrawLine(&axisPen, PointF(graphRect.X, graphRect.Y + graphRect.Height), PointF(graphRect.X + graphRect.Width, graphRect.Y + graphRect.Height));
@@ -212,18 +202,15 @@ void RULGraphHelper::DrawSingleRULGraph(
     yFormat.SetAlignment(StringAlignmentFar);
     yFormat.SetLineAlignment(StringAlignmentCenter);
 
-    for (int i = 0; i <= 8; i++) // [수정] 0부터 8까지 (총 9개 눈금)
+    for (int i = 0; i <= 8; i++)
     {
-        float yPos = graphRect.Y + graphRect.Height * i / 8.0f; // [수정] 8.0f로 나눠서 위치 계산
-        double value = 1.0 - (2.0 * i / 8.0);                  // [수정] 2.0 / 8.0 = 0.25 간격
+        float yPos = graphRect.Y + graphRect.Height * i / 8.0f;
+        double value = 1.0 - (2.0 * i / 8.0);
 
-        // 그리드 선
         graphics.DrawLine(&gridPen, PointF(graphRect.X, yPos), PointF(graphRect.X + graphRect.Width, yPos));
 
-        // 레이블
         CString label;
-        // 0.25 간격(0.75, 0.25, -0.25, -0.75)을 정확히 표시하기 위해 %.2f를 사용
-        label.Format(_T("%.2f"), value); // [수정] %.1f 대신 %.2f 사용
+        label.Format(_T("%.2f"), value);
         RectF labelRect(graphRect.X - 40, yPos - 8, 35, 16);
         graphics.DrawString(label, -1, &axisFont, labelRect, &yFormat, &textBrush);
     }
@@ -334,23 +321,20 @@ void RULGraphHelper::DrawLegend(CDC* pDC, CRect rect, int ci)
     graphics.SetSmoothingMode(SmoothingModeAntiAlias);
     graphics.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
 
-    // 1. 배경 및 테두리
     SolidBrush bgBrush(Color(255, 255, 255, 255));
     graphics.FillRectangle(&bgBrush, rect.left, rect.top, rect.Width(), rect.Height());
 
     Pen borderPen(Color(255, 200, 200, 200), 1.0f);
     graphics.DrawRectangle(&borderPen, rect.left, rect.top, rect.Width() - 1, rect.Height() - 1);
 
-    // 2. 폰트 설정
-    Gdiplus::Font font(L"맑은 고딕", 10, FontStyleRegular); // 글자 크기 약간 줄임
+    Gdiplus::Font font(L"맑은 고딕", 10, FontStyleRegular);
     SolidBrush textBrush(Color(255, 0, 0, 0));
     StringFormat format;
     format.SetAlignment(StringAlignmentNear);
     format.SetLineAlignment(StringAlignmentCenter);
 
-    // 3. 항목 정의
     struct LegendItem {
-        int type; // 0:Line, 1:Dot, 2:Rect, 3:Dash
+        int type;
         Color color;
         CString text;
     };
@@ -359,63 +343,54 @@ void RULGraphHelper::DrawLegend(CDC* pDC, CRect rect, int ci)
     ciText.Format(_T("%d%% CI Region"), ci);
 
     LegendItem items[] = {
-        // 왼쪽 열 (4개)
         { 0, Color(255, 31, 119, 180), _T("A train ~ B predict Regression ") },
         { 1, Color(255, 44, 160, 44), _T("B Predictive Mean") },
         { 1, Color(255, 255, 127, 14), _T("A Input") },
         { 1, Color(255, 255, 0, 0),    _T("B Target") },
-        // 오른쪽 열 (3개)
         { 2, Color(80, 174, 199, 232), ciText },
         { 3, Color(255, 255, 0, 0),    _T("Threshold +") },
         { 1, Color(255, 0, 0, 255),    _T("Faulty Point") }
     };
 
-    // 4. 2단 레이아웃 배치 계산
     float startX = (float)rect.left + 10.0f;
     float startY = (float)rect.top + 22.0f;
     float lineHeight = 25.0f;
     float iconWidth = 15.0f;
 
-    // 두 번째 열이 시작될 X 위치 (전체 너비의 약 55% 지점)
     float col2Offset = (float)rect.Width() * 0.65f;
 
     for (int i = 0; i < 7; i++)
     {
-        // 열(Column)과 행(Row) 결정
-        // 0~3번 인덱스: 0열 / 4~6번 인덱스: 1열
         int col = (i < 4) ? 0 : 1;
         int row = (i < 4) ? i : (i - 4);
 
         float currentX = startX + (col * col2Offset);
         float currentY = startY + (row * lineHeight);
 
-        // 텍스트 영역
         RectF textRect(currentX + iconWidth + 5, currentY - 15, col2Offset - iconWidth - 5, 25);
 
-        // 아이콘 좌표
         float iconMidY = currentY;
         float iconLeft = currentX;
         float iconRight = currentX + iconWidth;
 
-        // 타입별 그리기
-        if (items[i].type == 0) // 실선
+        if (items[i].type == 0)
         {
             Pen linePen(items[i].color, 2.0f);
             graphics.DrawLine(&linePen, PointF(iconLeft, iconMidY), PointF(iconRight, iconMidY));
         }
-        else if (items[i].type == 1) // 점
+        else if (items[i].type == 1)
         {
             SolidBrush dotBrush(items[i].color);
             float dotSize = 6.0f;
             graphics.FillEllipse(&dotBrush, (iconLeft + iconRight) / 2 - dotSize / 2, iconMidY - dotSize / 2, dotSize, dotSize);
         }
-        else if (items[i].type == 2) // CI 사각형
+        else if (items[i].type == 2)
         {
             SolidBrush rectBrush(items[i].color);
             float rectH = 8.0f;
             graphics.FillRectangle(&rectBrush, iconLeft, iconMidY - rectH / 2, iconWidth, rectH);
         }
-        else if (items[i].type == 3) // 점선
+        else if (items[i].type == 3)
         {
             Pen dashPen(items[i].color, 1.5f);
             dashPen.SetDashStyle(DashStyleDash);
@@ -489,7 +464,6 @@ void RULGraphHelper::DrawSinglePredictionGraph(Graphics& graphics, RectF rect,
     RectF titleRect(rect.X, rect.Y + 5, rect.Width, titleHeight);
     graphics.DrawString(title, -1, &titleFont, titleRect, &titleFormat, &titleBrush);
 
-    // [수정 1] 하단 여백을 줄여 그래프 크기 확보 (범례공간 + 축 텍스트 공간)
     float bottomMargin = 75.0f;
 
     RectF plotRect(rect.X + 50, rect.Y + titleHeight + 10,
@@ -606,17 +580,15 @@ void RULGraphHelper::DrawSinglePredictionGraph(Graphics& graphics, RectF rect,
 
     graphics.Restore(state);
 
-    // [수정 2] 범례 위치 조정 (화면 최하단 기준 -40 위치)
     float legendY = rect.Y + rect.Height - 23.0f;
     float legendX = rect.X + 10;
-    float col2X = legendX + 165.0f; // 2열 시작 위치
+    float col2X = legendX + 165.0f;
     float lineLen = 30.0f;
     float spacing = 15.0f;
 
     Gdiplus::Font legendFont(L"맑은 고딕", 10);
     Pen kdePen(Color(255, 100, 149, 237), 2.0f);
 
-    // 1행
     graphics.DrawLine(&kdePen, PointF(legendX, legendY), PointF(legendX + lineLen, legendY));
     graphics.DrawString(_T("Predicted Distribution"), -1, &legendFont,
         PointF(legendX + lineLen + 5, legendY - 7), &axisBrush);
@@ -627,7 +599,6 @@ void RULGraphHelper::DrawSinglePredictionGraph(Graphics& graphics, RectF rect,
     graphics.DrawString(ciLabel, -1, &legendFont,
         PointF(col2X + lineLen + 5, legendY - 7), &axisBrush);
 
-    // 2행
     legendY += spacing;
 
     graphics.DrawLine(&meanPen, PointF(legendX, legendY), PointF(legendX + lineLen, legendY));
@@ -638,7 +609,6 @@ void RULGraphHelper::DrawSinglePredictionGraph(Graphics& graphics, RectF rect,
     graphics.DrawString(_T("True Value"), -1, &legendFont,
         PointF(col2X + lineLen + 5, legendY - 7), &axisBrush);
 }
-
 
 void RULGraphHelper::DrawKDE(Graphics& graphics, RectF rect, const vector<double>& samples,
     double min_val, double max_val, double max_density)

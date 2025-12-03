@@ -6,16 +6,16 @@
 
 IMPLEMENT_DYNAMIC(CTabDlg2, CDialog)
 
-CTabDlg2::CTabDlg2(CWnd* pParent /*=nullptr*/)
+CTabDlg2::CTabDlg2(CWnd* pParent)
 	: CDialog(IDD_DLG_TAP2, pParent)
 	, m_nSelectedCI(0)
 	, m_pRULGraphHelper(nullptr)
 	, m_bRULDataLoaded(false)
 	, m_bPredDataLoaded(false)
 	, m_bCacheValid(false)
-	, m_bLoaded90(false) // [초기화]
-	, m_bLoaded95(false) // [초기화]
-	, m_bShowLoadingText(false) // [추가]
+	, m_bLoaded90(false)
+	, m_bLoaded95(false)
+	, m_bShowLoadingText(false)
 {
 }
 
@@ -30,7 +30,6 @@ CTabDlg2::~CTabDlg2()
 	if (!m_cachedPredGraph.IsNull())
 		m_cachedPredGraph.Destroy();
 }
-
 
 void CTabDlg2::DoDataExchange(CDataExchange* pDX)
 {
@@ -70,12 +69,11 @@ BOOL CTabDlg2::OnInitDialog()
 		pMonth->SetFont(&m_fontMonth);
 	}
 
-	// [추가] 로딩 텍스트 컨트롤 설정
 	CWnd* pLoading = GetDlgItem(IDC_STATIC_LOADING);
 	if (pLoading != NULL)
 	{
 		pLoading->SetFont(&m_fontLoading);
-		pLoading->ShowWindow(SW_HIDE); // 처음엔 숨김
+		pLoading->ShowWindow(SW_HIDE);
 	}
 
 	CRect clientRect;
@@ -116,7 +114,6 @@ void CTabDlg2::LoadPredictionGraphData(const PredictionGraphData& data)
 		m_predGraphData = data;
 		m_bPredDataLoaded = true;
 
-		// [수정] 로딩 텍스트 숨기기
 		CWnd* pLoading = GetDlgItem(IDC_STATIC_LOADING);
 		if (pLoading != NULL)
 		{
@@ -188,8 +185,6 @@ void CTabDlg2::OnPaint()
 	}
 }
 
-
-
 void CTabDlg2::OnDestroy()
 {
 	CDialog::OnDestroy();
@@ -205,14 +200,11 @@ void CTabDlg2::OnSize(UINT nType, int cx, int cy)
 	Invalidate();
 }
 
-// TabDlg2.cpp
-
-void CTabDlg2::OnBnClickedRadio1() // 90% 버튼
+void CTabDlg2::OnBnClickedRadio1()
 {
 	m_nSelectedCI = 90;
-	UpdateViewFromCache(); // 탭2 갱신
+	UpdateViewFromCache();
 
-	// [추가] 부모 다이얼로그를 통해 탭3도 함께 갱신 요청
 	CLIGCapstoneDlg* pParent = (CLIGCapstoneDlg*)GetParent()->GetParent();
 	if (pParent != nullptr)
 	{
@@ -220,12 +212,11 @@ void CTabDlg2::OnBnClickedRadio1() // 90% 버튼
 	}
 }
 
-void CTabDlg2::OnBnClickedRadio2() // 95% 버튼
+void CTabDlg2::OnBnClickedRadio2()
 {
 	m_nSelectedCI = 95;
-	UpdateViewFromCache(); // 탭2 갱신
+	UpdateViewFromCache();
 
-	// [추가] 부모 다이얼로그를 통해 탭3도 함께 갱신 요청
 	CLIGCapstoneDlg* pParent = (CLIGCapstoneDlg*)GetParent()->GetParent();
 	if (pParent != nullptr)
 	{
@@ -243,7 +234,6 @@ void CTabDlg2::UpdateViewFromCache()
 		m_rulGraphData = m_rulData90;
 		bFound = true;
 
-		// [수정] 잘못된 계산 로직 삭제하고 캐시된 텍스트 사용
 		UpdateRULDisplay(m_strRul90);
 	}
 	else if (m_nSelectedCI == 95 && m_bLoaded95)
@@ -252,23 +242,13 @@ void CTabDlg2::UpdateViewFromCache()
 		m_rulGraphData = m_rulData95;
 		bFound = true;
 
-		// [수정] 잘못된 계산 로직 삭제하고 캐시된 텍스트 사용
 		UpdateRULDisplay(m_strRul95);
 	}
 
-	// 2. 데이터 로드 상태 갱신
 	if (bFound)
 	{
 		m_bPredDataLoaded = true;
 		m_bRULDataLoaded = true;
-
-		// [삭제] 아래의 잘못된 코드를 지우거나 주석 처리하세요
-		/* CString strRul;
-		double rulVal = 0.0;
-		if (!m_rulGraphData.rul_mean_list.empty()) rulVal = m_rulGraphData.rul_mean_list[0];
-		strRul.Format(_T("%.1f Month"), rulVal);
-		UpdateRULDisplay(strRul);
-		*/
 	}
 	else
 	{
@@ -339,7 +319,7 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 	CWnd* pBtnRun = GetDlgItem(IDC_BTN_RUN);
 	CWnd* pDriftText = GetDlgItem(IDC_STATIC_DRIFT_TEXT);
 	CWnd* pPictureDrift = GetDlgItem(IDC_PICTURE_DRIFT);
-	CWnd* pLoading = GetDlgItem(IDC_STATIC_LOADING); // [추가]
+	CWnd* pLoading = GetDlgItem(IDC_STATIC_LOADING);
 
 	int margin = 20;
 	int topMargin = 10;
@@ -422,7 +402,6 @@ void CTabDlg2::ArrangeControls(int cx, int cy)
 		pPictureDrift->MoveWindow(leftX, currentY, cx - margin * 2, imageHeight);
 	}
 
-	// [추가] 로딩 텍스트를 그래프 영역 중앙에 배치
 	if (pLoading != NULL && pPictureDrift != NULL)
 	{
 		CRect rectDrift;
@@ -464,7 +443,6 @@ void CTabDlg2::OnBnClickedRun()
 		return;
 	}
 
-	// [수정] Static 컨트롤로 로딩 텍스트 표시
 	CWnd* pLoading = GetDlgItem(IDC_STATIC_LOADING);
 	if (pLoading != NULL)
 	{
@@ -475,7 +453,6 @@ void CTabDlg2::OnBnClickedRun()
 
 	pParent->RunInference(pParent->m_loadedCsvPath, ci);
 }
-
 
 void CTabDlg2::ResetRadioButtons()
 {
@@ -492,7 +469,6 @@ void CTabDlg2::ResetRadioButtons()
 	m_strRul90.Empty();
 	m_strRul95.Empty();
 
-	// [수정] 로딩 텍스트 숨기기
 	CWnd* pLoading = GetDlgItem(IDC_STATIC_LOADING);
 	if (pLoading != NULL)
 	{
@@ -504,6 +480,7 @@ void CTabDlg2::ResetRadioButtons()
 	InvalidateCache();
 	Invalidate();
 }
+
 void CTabDlg2::UpdateRULDisplay(const CString& text)
 {
 	CWnd* pMonth = GetDlgItem(IDC_STATIC_MONTH);
@@ -527,7 +504,6 @@ void CTabDlg2::UpdateRULDisplay(const CString& text)
 
 void CTabDlg2::LoadRULGraphData(const RULGraphData& data)
 {
-	// 1. 캐시에 저장
 	if (data.ci == 90)
 	{
 		m_rulData90 = data;
@@ -537,13 +513,10 @@ void CTabDlg2::LoadRULGraphData(const RULGraphData& data)
 		m_rulData95 = data;
 	}
 
-	// 2. 현재 선택과 일치하면 갱신
 	if (m_nSelectedCI == data.ci)
 	{
 		m_rulGraphData = data;
 		m_bRULDataLoaded = true;
-		// RUL 텍스트 표시는 부모나 다른곳에서 UpdateRULDisplay를 호출한다고 가정하거나
-		// 여기서 직접 호출
 		Invalidate();
 	}
 }

@@ -5,11 +5,11 @@
 
 IMPLEMENT_DYNAMIC(CTabDlg1, CDialog)
 
-CTabDlg1::CTabDlg1(CWnd* pParent /*=nullptr*/)
+CTabDlg1::CTabDlg1(CWnd* pParent)
 	: CDialog(IDD_DLG_TAP1, pParent)
 	, m_pGraphHelper(nullptr)
 	, m_bDataLoaded(false)
-	, m_bCacheValid(false)  // 추가
+	, m_bCacheValid(false)
 {
 }
 
@@ -21,7 +21,6 @@ CTabDlg1::~CTabDlg1()
 		m_pGraphHelper = nullptr;
 	}
 
-	// 캐시 이미지 해제
 	if (!m_cachedLeftGraph.IsNull())
 		m_cachedLeftGraph.Destroy();
 	if (!m_cachedRightGraph.IsNull())
@@ -46,7 +45,6 @@ BOOL CTabDlg1::OnInitDialog()
 
 	m_brushBg.CreateSolidBrush(RGB(255, 255, 255));
 
-	// 그래프 헬퍼 생성
 	m_pGraphHelper = new CGraphHelper();
 
 	InitializeUI();
@@ -90,40 +88,33 @@ void CTabDlg1::OnPaint()
 			pWndRight->GetWindowRect(&rectRight);
 			ScreenToClient(&rectRight);
 
-			// 크기가 변경되었거나 캐시가 없으면 다시 그리기
 			if (!m_bCacheValid ||
 				rectLeft != m_lastLeftRect ||
 				rectRight != m_lastRightRect)
 			{
-				// 캐시 초기화
 				if (!m_cachedLeftGraph.IsNull())
 					m_cachedLeftGraph.Destroy();
 				if (!m_cachedRightGraph.IsNull())
 					m_cachedRightGraph.Destroy();
 
-				// 새 비트맵 생성
 				m_cachedLeftGraph.Create(rectLeft.Width(), rectLeft.Height(), 32);
 				m_cachedRightGraph.Create(rectRight.Width(), rectRight.Height(), 32);
 
-				// 왼쪽 그래프를 비트맵에 그리기
 				CDC* pLeftDC = CDC::FromHandle(m_cachedLeftGraph.GetDC());
 				CRect tempRect(0, 0, rectLeft.Width(), rectLeft.Height());
 				m_pGraphHelper->DrawGraph(pLeftDC, tempRect, m_imuData, true);
 				m_cachedLeftGraph.ReleaseDC();
 
-				// 오른쪽 그래프를 비트맵에 그리기
 				CDC* pRightDC = CDC::FromHandle(m_cachedRightGraph.GetDC());
 				tempRect = CRect(0, 0, rectRight.Width(), rectRight.Height());
 				m_pGraphHelper->DrawGraph(pRightDC, tempRect, m_imuData, false);
 				m_cachedRightGraph.ReleaseDC();
 
-				// 캐시 유효화
 				m_bCacheValid = true;
 				m_lastLeftRect = rectLeft;
 				m_lastRightRect = rectRight;
 			}
 
-			// 캐시된 비트맵 그리기 (매우 빠름)
 			m_cachedLeftGraph.BitBlt(dc.m_hDC, rectLeft.left, rectLeft.top);
 			m_cachedRightGraph.BitBlt(dc.m_hDC, rectRight.left, rectRight.top);
 		}
@@ -141,7 +132,6 @@ void CTabDlg1::OnSize(UINT nType, int cx, int cy)
 
 	ArrangeControls(cx, cy);
 
-	// 크기 변경시 캐시 무효화
 	InvalidateCache();
 	Invalidate();
 }
@@ -210,7 +200,6 @@ void CTabDlg1::InvalidateCache()
 	m_bCacheValid = false;
 }
 
-// 메인 다이얼로그에서 호출될 함수
 void CTabDlg1::LoadCSVFile(const CString& filePath)
 {
 	if (m_pGraphHelper != nullptr)
@@ -219,10 +208,8 @@ void CTabDlg1::LoadCSVFile(const CString& filePath)
 		{
 			m_bDataLoaded = true;
 
-			// 캐시 무효화
 			InvalidateCache();
 
-			// 다시 그리기
 			Invalidate();
 		}
 		else

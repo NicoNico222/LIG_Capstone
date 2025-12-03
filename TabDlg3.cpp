@@ -5,7 +5,7 @@
 
 IMPLEMENT_DYNAMIC(CTabDlg3, CDialogEx)
 
-CTabDlg3::CTabDlg3(CWnd* pParent /*=nullptr*/)
+CTabDlg3::CTabDlg3(CWnd* pParent)
 	: CDialogEx(IDD_DLG_TAP3, pParent)
 	, m_pRULGraphHelper(nullptr)
 	, m_bRULDataLoaded(false)
@@ -131,7 +131,6 @@ void CTabDlg3::OnPaint()
 			ScreenToClient(&rectLegend);
 
 			m_pRULGraphHelper->DrawLegend(&dc, rectLegend, m_rulGraphData.ci);
-
 		}
 	}
 }
@@ -180,33 +179,27 @@ void CTabDlg3::ArrangeControls(int cx, int cy)
 	CWnd* pRulText = GetDlgItem(IDC_STATIC_RUL_TEXT);
 	CWnd* pPictureRul = GetDlgItem(IDC_PICTURE_RUL);
 
-	// --- Tab2 동기화 변수 ---
 	int margin = 20;
 	int topMargin = 10;
 	int titleHeight = 30;
 	int groupHeight = 70;
 	int spacingSmall = 5;
 
-	// 박스 크기 동기화 (Tab2의 marginBoxWidth, titleHeight, groupHeight 사용)
 	int infoBoxWidth = 300;
 
-	// --- 레이아웃 치수 설정 ---
 	int legendLeftMargin = 40;
 	int headerHeight = 110;
 
-	// 1. 범례 배치 (고정 위치)
 	int legendWidth = 360;
 	if (pLegend != NULL)
 	{
 		pLegend->MoveWindow(legendLeftMargin, topMargin, legendWidth, headerHeight);
 	}
 
-	// 2. CI 컨트롤 배치 (화면 왼쪽 1/2 중앙에 위치)
 	int halfWidth = (cx - margin * 3) / 2;
 	int leftX = margin;
-	int boxWidthCI = 250; // Tab2의 RUL Predict 박스 너비 사용
+	int boxWidthCI = 250;
 
-	// CI 박스 위치 (Tab2의 CI/Predict 박스 위치 계산 공식 사용)
 	int ciGroupX = leftX + (halfWidth - boxWidthCI) / 2 + 100;
 
 	int currentY = topMargin;
@@ -218,11 +211,9 @@ void CTabDlg3::ArrangeControls(int cx, int cy)
 	if (pCIBox != NULL)
 		pCIBox->MoveWindow(ciGroupX, currentY, boxWidthCI, groupHeight);
 
-	// 3. RUL 컨트롤 배치 (Tab2와 동일하게 우측 1/2 중앙에 위치)
 	int rightX = leftX + halfWidth + margin;
 	currentY = topMargin;
 
-	// RUL 박스 위치 (Tab2의 RUL Margin 박스 위치 계산 공식 사용)
 	int rulGroupX = rightX + (halfWidth - infoBoxWidth) / 2;
 
 	if (pRulMargin != NULL)
@@ -232,20 +223,16 @@ void CTabDlg3::ArrangeControls(int cx, int cy)
 	if (pMonth != NULL)
 		pMonth->MoveWindow(rulGroupX, currentY, infoBoxWidth, groupHeight);
 
-
-	// --- 하단 그래프 영역 ---
 	int bottomY = topMargin + titleHeight + spacingSmall + groupHeight + spacingSmall;
 	int graphStartY = bottomY;
 
 	int graphTitleHeight = 30;
 
-	// 4. "RUL 예측 결과" 텍스트 (좌우 여백 margin 적용)
 	if (pRulText != NULL)
 	{
 		pRulText->MoveWindow(margin, graphStartY, cx - margin * 2, graphTitleHeight);
 	}
 
-	// 5. 그래프 그림 영역
 	int pictureY = graphStartY + graphTitleHeight + 10;
 	int pictureHeight = cy - pictureY - margin;
 
@@ -313,24 +300,18 @@ void CTabDlg3::LoadRULGraphData(const RULGraphData& data)
 	Invalidate();
 }
 
-// TabDlg3.cpp 맨 아래에 추가
-
 void CTabDlg3::ResetUI()
 {
-	// 1. 데이터 로드 플래그 해제 (그래프가 그려지지 않게 함)
 	m_bRULDataLoaded = false;
 
-	// 2. RUL 텍스트 초기화
 	UpdateRULDisplay(_T(""));
 
-	// 3. CI 텍스트 초기화 (빈 문자열 설정)
 	CWnd* pCIBox = GetDlgItem(IDC_STATIC_RUL_CI_BOX);
 	if (pCIBox != NULL)
 	{
 		pCIBox->SetWindowText(_T(""));
 	}
 
-	// 4. 캐시 무효화 및 화면 갱신 (하얀 배경으로 지워짐)
 	InvalidateCache();
 	Invalidate();
 }
