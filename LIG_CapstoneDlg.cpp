@@ -621,7 +621,44 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 				return result;
 				};
 
-			predData.true_values = parseDoubleArray(fullResponse, "true_values", vis_result_pos);
+			bool multi_step = false;
+			size_t multi_step_pos = fullResponse.find("\"multi_step\"", vis_result_pos);
+			if (multi_step_pos != std::string::npos)
+			{
+				size_t colon = fullResponse.find(":", multi_step_pos);
+				size_t start = colon + 1;
+				size_t end = fullResponse.find_first_of(",}", start);
+				std::string val = fullResponse.substr(start, end - start);
+				val.erase(0, val.find_first_not_of(" \t\n\r"));
+				val.erase(val.find_last_not_of(" \t\n\r") + 1);
+				multi_step = (val == "true");
+			}
+
+			// true_values 파싱 (null 체크 추가)
+			size_t true_values_pos = fullResponse.find("\"true_values\"", vis_result_pos);
+			if (true_values_pos != std::string::npos)
+			{
+				size_t colon = fullResponse.find(":", true_values_pos);
+				size_t start = colon + 1;
+				size_t bracket_start = fullResponse.find_first_not_of(" \t\n\r", start);
+
+				// null 체크
+				if (fullResponse.substr(bracket_start, 4) == "null")
+				{
+					predData.has_true_values = false;
+					predData.true_values.clear();
+				}
+				else
+				{
+					predData.has_true_values = multi_step;
+					predData.true_values = parseDoubleArray(fullResponse, "true_values", vis_result_pos);
+				}
+			}
+			else
+			{
+				predData.has_true_values = false;
+				predData.true_values.clear();
+			}
 
 			size_t predictions_pos = fullResponse.find("\"predictions\"", vis_result_pos);
 			if (predictions_pos != std::string::npos)

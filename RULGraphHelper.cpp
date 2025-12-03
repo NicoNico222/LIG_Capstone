@@ -437,9 +437,13 @@ void RULGraphHelper::DrawPredictionGraph(CDC* pDC, CRect rect, const PredictionG
                 axis_samples.push_back(sample[i]);
         }
 
+        double true_val = (data.has_true_values && data.true_values.size() > i)
+            ? data.true_values[i]
+            : std::numeric_limits<double>::quiet_NaN();
+
         DrawSinglePredictionGraph(graphics, graphRect, axis_samples,
             data.mean[i], data.ci_lower[i], data.ci_upper[i],
-            data.true_values[i], data.ci, titles[i]);
+            true_val, data.ci, titles[i]);
     }
 }
 
@@ -472,8 +476,16 @@ void RULGraphHelper::DrawSinglePredictionGraph(Graphics& graphics, RectF rect,
     double rawMin = *std::min_element(samples.begin(), samples.end());
     double rawMax = *std::max_element(samples.begin(), samples.end());
 
-    rawMin = min(rawMin, min(mean_val, min(ci_lower, min(ci_upper, true_val))));
-    rawMax = max(rawMax, max(mean_val, max(ci_lower, max(ci_upper, true_val))));
+    if (!std::isnan(true_val))
+    {
+        rawMin = min(rawMin, min(mean_val, min(ci_lower, min(ci_upper, true_val))));
+        rawMax = max(rawMax, max(mean_val, max(ci_lower, max(ci_upper, true_val))));
+    }
+    else
+    {
+        rawMin = min(rawMin, min(mean_val, min(ci_lower, ci_upper)));
+        rawMax = max(rawMax, max(mean_val, max(ci_lower, ci_upper)));
+    }
 
     AxisInfo xAxis = CalculateNiceAxis(rawMin, rawMax, 8);
     double xMin = xAxis.min_val;
@@ -540,9 +552,12 @@ void RULGraphHelper::DrawSinglePredictionGraph(Graphics& graphics, RectF rect,
     graphics.DrawLine(&ciPen, PointF(ciLowerX, plotRect.Y), PointF(ciLowerX, plotRect.Y + plotRect.Height));
     graphics.DrawLine(&ciPen, PointF(ciUpperX, plotRect.Y), PointF(ciUpperX, plotRect.Y + plotRect.Height));
 
-    Pen truePen(Color(255, 0, 128, 0), 2.0f);
-    float trueX = GetXPos(true_val, xMin, xMax, plotRect.Width);
-    graphics.DrawLine(&truePen, PointF(trueX, plotRect.Y), PointF(trueX, plotRect.Y + plotRect.Height));
+    if (!std::isnan(true_val))
+    {
+        Pen truePen(Color(255, 0, 128, 0), 2.0f);
+        float trueX = GetXPos(true_val, xMin, xMax, plotRect.Width);
+        graphics.DrawLine(&truePen, PointF(trueX, plotRect.Y), PointF(trueX, plotRect.Y + plotRect.Height));
+    }
 
     CString xlabel = _T("Drift Value");
     RectF xlabelRect(plotRect.X, plotRect.Y + plotRect.Height + 25, plotRect.Width, 20);
@@ -605,9 +620,14 @@ void RULGraphHelper::DrawSinglePredictionGraph(Graphics& graphics, RectF rect,
     graphics.DrawString(_T("Mean"), -1, &legendFont,
         PointF(legendX + lineLen + 5, legendY - 7), &axisBrush);
 
-    graphics.DrawLine(&truePen, PointF(col2X, legendY), PointF(col2X + lineLen, legendY));
-    graphics.DrawString(_T("True Value"), -1, &legendFont,
-        PointF(col2X + lineLen + 5, legendY - 7), &axisBrush);
+    if (!std::isnan(true_val))
+    {
+        Pen truePen(Color(255, 0, 128, 0), 2.0f);
+        graphics.DrawLine(&truePen, PointF(col2X, legendY), PointF(col2X + lineLen, legendY));
+        graphics.DrawString(_T("True Value"), -1, &legendFont,
+            PointF(col2X + lineLen + 5, legendY - 7), &axisBrush);
+    }
+
 }
 
 void RULGraphHelper::DrawKDE(Graphics& graphics, RectF rect, const vector<double>& samples,

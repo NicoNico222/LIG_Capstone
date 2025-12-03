@@ -26,6 +26,7 @@ struct RULGraphData
     double p2_x_mean;
     vector<double> rul_mean_list;
     int ci;
+     bool has_target;
 };
 
 struct PredictionGraphData
@@ -36,6 +37,7 @@ struct PredictionGraphData
     vector<double> ci_upper;
     vector<double> true_values;
     int ci;
+    bool has_true_values;
 };
 
 struct AxisInfo
