@@ -56,7 +56,7 @@ public:
 
     void DrawRULGraph(CDC* pDC, CRect rect, const RULGraphData& data);
     void DrawPredictionGraph(CDC* pDC, CRect rect, const PredictionGraphData& data);
-    void DrawLegend(CDC* pDC, CRect rect, int ci);
+    void DrawLegend(CDC* pDC, CRect rect, int ci, bool has_target = true);
 
 private:
     ULONG_PTR m_gdiplusToken;

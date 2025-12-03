@@ -315,7 +315,7 @@ void RULGraphHelper::DrawSingleRULGraph(
     }
 }
 
-void RULGraphHelper::DrawLegend(CDC* pDC, CRect rect, int ci)
+void RULGraphHelper::DrawLegend(CDC* pDC, CRect rect, int ci, bool has_target)
 {
     Graphics graphics(pDC->m_hDC);
     graphics.SetSmoothingMode(SmoothingModeAntiAlias);
@@ -337,19 +337,20 @@ void RULGraphHelper::DrawLegend(CDC* pDC, CRect rect, int ci)
         int type;
         Color color;
         CString text;
+        bool show; 
     };
 
     CString ciText;
     ciText.Format(_T("%d%% CI Region"), ci);
 
     LegendItem items[] = {
-        { 0, Color(255, 31, 119, 180), _T("A train ~ B predict Regression ") },
-        { 1, Color(255, 44, 160, 44), _T("B Predictive Mean") },
-        { 1, Color(255, 255, 127, 14), _T("A Input") },
-        { 1, Color(255, 255, 0, 0),    _T("B Target") },
-        { 2, Color(80, 174, 199, 232), ciText },
-        { 3, Color(255, 255, 0, 0),    _T("Threshold +") },
-        { 1, Color(255, 0, 0, 255),    _T("Faulty Point") }
+        { 0, Color(255, 31, 119, 180), _T("A train ~ B predict Regression "), true },
+        { 1, Color(255, 44, 160, 44), _T("B Predictive Mean"), true },
+        { 1, Color(255, 255, 127, 14), _T("A Input"), true },
+        { 1, Color(255, 255, 0, 0),    _T("B Target"), has_target },
+        { 2, Color(80, 174, 199, 232), ciText, true },
+        { 3, Color(255, 255, 0, 0),    _T("Threshold +"), true },
+        { 1, Color(255, 0, 0, 255),    _T("Faulty Point"), true }
     };
 
     float startX = (float)rect.left + 10.0f;
@@ -359,10 +360,13 @@ void RULGraphHelper::DrawLegend(CDC* pDC, CRect rect, int ci)
 
     float col2Offset = (float)rect.Width() * 0.65f;
 
+    int visibleIndex = 0;
     for (int i = 0; i < 7; i++)
     {
-        int col = (i < 4) ? 0 : 1;
-        int row = (i < 4) ? i : (i - 4);
+        if (!items[i].show) continue; 
+
+        int col = (visibleIndex < 4) ? 0 : 1;
+        int row = (visibleIndex < 4) ? visibleIndex : (visibleIndex - 4);
 
         float currentX = startX + (col * col2Offset);
         float currentY = startY + (row * lineHeight);
@@ -398,6 +402,8 @@ void RULGraphHelper::DrawLegend(CDC* pDC, CRect rect, int ci)
         }
 
         graphics.DrawString(items[i].text, -1, &font, textRect, &format, &textBrush);
+
+        visibleIndex++; 
     }
 }
 

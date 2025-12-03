@@ -130,7 +130,7 @@ void CTabDlg3::OnPaint()
 			pWndLegend->GetWindowRect(&rectLegend);
 			ScreenToClient(&rectLegend);
 
-			m_pRULGraphHelper->DrawLegend(&dc, rectLegend, m_rulGraphData.ci);
+			m_pRULGraphHelper->DrawLegend(&dc, rectLegend, m_rulGraphData.ci, m_rulGraphData.has_target);
 		}
 	}
 }

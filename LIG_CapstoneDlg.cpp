@@ -622,7 +622,7 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 				};
 
 			bool multi_step = false;
-			size_t multi_step_pos = fullResponse.find("\"multi_step\"", vis_result_pos);
+			size_t multi_step_pos = fullResponse.find("\"multi_step\"", vis_rul_pos);
 			if (multi_step_pos != std::string::npos)
 			{
 				size_t colon = fullResponse.find(":", multi_step_pos);
@@ -634,7 +634,8 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 				multi_step = (val == "true");
 			}
 
-			// true_values 파싱 (null 체크 추가)
+			rulData.has_target = multi_step;
+
 			size_t true_values_pos = fullResponse.find("\"true_values\"", vis_result_pos);
 			if (true_values_pos != std::string::npos)
 			{
@@ -642,7 +643,6 @@ void CLIGCapstoneDlg::RunInference(const CString& csvPath, int ci)
 				size_t start = colon + 1;
 				size_t bracket_start = fullResponse.find_first_not_of(" \t\n\r", start);
 
-				// null 체크
 				if (fullResponse.substr(bracket_start, 4) == "null")
 				{
 					predData.has_true_values = false;
